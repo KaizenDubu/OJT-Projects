@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Three.js PM2100 - Accurate Interface Edition</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #1e272e; }
+        #info {
+            position: absolute; top: 20px; width: 100%; text-align: center;
+            font-family: 'Segoe UI', Tahoma, sans-serif; color: white;
+            font-size: 18px; pointer-events: none; text-shadow: 1px 1px 2px black;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body>
+    <div id="info">Interact with the Meter: Click the circular grey buttons!</div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+    <script>
+        // ==========================================
+        // 1. SCENE SETUP
+        // ==========================================
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 0, 16);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio); 
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.body.appendChild(renderer.domElement);
+
+        const maxAnisotropy = renderer.capabilities.getMaxAnisotropy();
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5); 
+        scene.add(ambientLight);
+        
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight.position.set(5, 10, 10);
+        directionalLight.castShadow = true;
+        scene.add(directionalLight);
+
+        const interactableObjects = [];
+        let screenValues = ["236.5", "1.842", "0.998"];
+
+        // ==========================================
+        // 2. TRUE 7-SEGMENT DRAWING ENGINE
+        // ==========================================
+        function drawLCDValue(ctx, rightX, y, valueStr) {
+            ctx.save();
+            ctx.translate(rightX, y);
+            ctx.transform(1, 0, -0.15, 1, 0, 0); // Skew for slanted look
+
+            const digitW = 75; const digitH = 140; const t = 14; const gap = 2;
+            let currX = 0;
+            const chars = valueStr.split('').reverse(); 
+
+            function draw7Seg(x, char) {
+                const segs = {
+                    '0': [1,1,1,1,1,1,0], '1': [0,1,1,0,0,0,0], '2': [1,1,0,1,1,0,1],
+                    '3': [1,1,1,1,0,0,1], '4': [0,1,1,0,0,1,1], '5': [1,0,1,1,0,1,1],
+                    '6': [1,0,1,1,1,1,1], '7': [1,1,1,0,0,0,0], '8': [1,1,1,1,1,1,1],
+                    '9': [1,1,1,1,0,1,1], ' ': [0,0,0,0,0,0,0]
+                };
+                const s = segs[char] || segs[' '];
+
+                function drawRect(sx, sy, sw, sh, isActive) {
+                    ctx.fillStyle = isActive ? '#ff1a1a' : '#220505'; 
+                    ctx.shadowColor = isActive ? '#ff0000' : 'transparent';
+                    ctx.shadowBlur = isActive ? 15 : 0;
+                    ctx.fillRect(sx, sy, sw, sh);
+                }
+
+                drawRect(x + t + gap, 0, digitW - 2*t - 2*gap, t, s[0]); // Top
+                drawRect(x + digitW - t, t + gap, t, digitH/2 - 1.5*t - gap, s[1]); // TR
+                drawRect(x + digitW - t, digitH/2 + t/2 + gap, t, digitH/2 - 1.5*t - gap, s[2]); // BR
+                drawRect(x + t + gap, digitH - t, digitW - 2*t - 2*gap, t, s[3]); // Bot
+                drawRect(x, digitH/2 + t/2 + gap, t, digitH/2 - 1.5*t - gap, s[4]); // BL
+                drawRect(x, t + gap, t, digitH/2 - 1.5*t - gap, s[5]); // TL
+                drawRect(x + t + gap, digitH/2 - t/2, digitW - 2*t - 2*gap, t, s[6]); // Mid
+            }
+
+            chars.forEach(char => {
+                if (char === '.') {
+                    ctx.fillStyle = '#ff1a1a'; ctx.shadowColor = '#ff0000'; ctx.shadowBlur = 15;
+                    ctx.fillRect(currX - t*1.5, digitH - t, t, t);
+                    currX -= (t * 2); 
+                } else {
+                    currX -= digitW;
+                    draw7Seg(currX, char);
+                    currX -= 25; 
+                }
+            });
+            ctx.restore(); 
+        }
+
+        // Helper to draw the small circle with down arrow
+        function drawCircleArrow(ctx, x, y) {
+            ctx.strokeStyle = '#a0a5aa'; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.arc(x, y, 7, 0, Math.PI*2); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(x-3, y-2); ctx.lineTo(x, y+2); ctx.lineTo(x+3, y-2); ctx.stroke();
+        }
+
+        // ==========================================
+        // 3. FACEPLATE TEXTURE GENERATOR
+        // ==========================================
+        function createFaceplateTexture(val1, val2, val3) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 1024; canvas.height = 1024;
+            const ctx = canvas.getContext('2d');
+
+            // Dark Grey Base (No red tint)
+            ctx.fillStyle = '#555a5e';
+            ctx.fillRect(0, 0, 1024, 1024);
+
+            // LOGOS
+            ctx.fillStyle = '#ffffff'; ctx.textAlign = 'left';
+            ctx.font = 'bold 36px Arial'; ctx.fillText('Schneider', 50, 50);
+            ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 3; ctx.beginPath(); ctx.ellipse(100, 75, 12, 6, -Math.PI / 5, 0, Math.PI * 2); ctx.stroke();
+            ctx.font = '22px Arial'; ctx.fillText('Electric', 120, 82);
+            ctx.textAlign = 'right'; ctx.font = '30px Arial'; ctx.fillStyle = '#a1a6ab'; ctx.fillText('EasyLogic™ PM2100', 960, 60);
+
+            // BLACK LCD
+            ctx.fillStyle = '#0a0a0c'; ctx.fillRect(280, 100, 620, 700);
+            ctx.strokeStyle = '#1a1c20'; ctx.lineWidth = 4;
+            ctx.beginPath(); ctx.moveTo(280, 333); ctx.lineTo(900, 333); ctx.moveTo(280, 566); ctx.lineTo(900, 566); ctx.stroke();
+
+            // LCD Markers
+            ctx.fillStyle = '#a0a5aa'; ctx.font = '22px Arial'; ctx.textAlign = 'left';
+            ctx.fillText('L1', 295, 170); ctx.fillText('L2', 295, 403); ctx.fillText('L3', 295, 636);
+            ctx.fillStyle = '#33363a'; ctx.fillRect(295, 230, 20, 6); ctx.fillRect(295, 463, 20, 6); ctx.fillRect(295, 696, 20, 6);
+
+            // DRAW THE 7-SEGMENT BOX NUMBERS
+            drawLCDValue(ctx, 860, 145, val1);
+            drawLCDValue(ctx, 860, 380, val2);
+            drawLCDValue(ctx, 860, 615, val3);
+
+            // ==========================================
+            // LEFT LABELS & GROUPING
+            // ==========================================
+            const leftItems = ['V L-N', 'V L-L', 'I', 'kVA', 'kW', 'kVAR', 'PF', 'V THD%', 'I THD%', 'separator', 'DM', 'PrsDM', 'PrdDM', 'MD', 'RTC', 'IO'];
+            let currY = 145; const ySpc = 44.5;
+            
+            // Left Grouping Bracket
+            ctx.strokeStyle = '#8e9699'; ctx.lineWidth = 1.5;
+            ctx.beginPath(); ctx.moveTo(250, 130); ctx.arcTo(235, 130, 235, 140, 10); ctx.lineTo(235, 510); ctx.arcTo(235, 520, 250, 520, 10); ctx.stroke();
+
+            leftItems.forEach((item, i) => {
+                if (item === 'separator') { currY += ySpc/2; return; }
+                
+                // Draw text or colored boxes
+                if (item === 'RTC') { 
+                    ctx.fillStyle = '#e73c3e'; ctx.fillRect(160, currY - 14, 60, 28); ctx.fillStyle = '#ffffff'; ctx.font = 'bold 16px Arial'; ctx.textAlign = 'center'; ctx.fillText(item, 190, currY + 5);
+                } else if (item === 'IO') { 
+                    ctx.fillStyle = '#00a34f'; ctx.fillRect(170, currY - 14, 50, 28); ctx.fillStyle = '#ffffff'; ctx.font = 'bold 16px Arial'; ctx.textAlign = 'center'; ctx.fillText(item, 195, currY + 5);
+                } else { 
+                    ctx.fillStyle = '#a0a5aa'; ctx.font = '20px Arial'; ctx.textAlign = 'right'; ctx.fillText(item, 225, currY + 6); 
+                }
+
+                // Draw Triangle ◀
+                ctx.fillStyle = '#111214'; ctx.beginPath(); ctx.moveTo(245, currY); ctx.lineTo(260, currY - 8); ctx.lineTo(260, currY + 8); ctx.fill();
+                
+                // Draw circle arrow for bottom items
+                if(i >= 10 && item !== 'RTC' && item !== 'IO') {
+                    drawCircleArrow(ctx, 235, currY + 18);
+                }
+                
+                currY += ySpc;
+            });
+
+            // ==========================================
+            // RIGHT LABELS & GROUPING (TIGHT SPACING)
+            // ==========================================
+            const rightItems = [{ type: 'label', text: 'V avg' }, { type: 'label', text: 'kVA' }, { type: 'label', text: 'F' }, { type: 'box', text: 'x1000' }, { type: 'label', text: 'I avg' }, { type: 'label', text: 'kW' }, { type: 'label', text: 'In' }, { type: 'box', text: 'x1000' }, { type: 'label', text: 'PF avg' }, { type: 'label', text: 'kVAR' }, { type: 'label', text: 'I unb%' }, { type: 'redbox', text: 'x1000' }];
+            currY = 145; 
+
+            // Right Grouping Bracket
+            ctx.beginPath(); ctx.moveTo(930, 130); ctx.arcTo(910, 130, 910, 140, 10); ctx.lineTo(910, 688); ctx.arcTo(910, 698, 930, 698, 10); ctx.stroke();
+
+            rightItems.forEach((item, i) => {
+                // Triangle ▶
+                ctx.fillStyle = (item.type === 'redbox') ? '#e73c3e' : '#111214';
+                ctx.beginPath(); ctx.moveTo(930, currY); ctx.lineTo(915, currY - 8); ctx.lineTo(915, currY + 8); ctx.fill();
+
+                // Text / Boxes
+                ctx.fillStyle = '#a0a5aa'; ctx.font = '20px Arial'; ctx.textAlign = 'left';
+                if (item.type === 'label') {
+                    if(item.text.includes('avg') || item.text === 'I unb%') { 
+                        let parts = item.text.split(' '); ctx.fillText(parts[0], 945, currY + 6); ctx.font = '16px Arial'; let w = ctx.measureText(parts[0]).width; ctx.fillText(parts[1], 945 + w + 2, currY + 9);
+                    } else { 
+                        ctx.fillText(item.text, 945, currY + 6); 
+                    }
+                } else {
+                    ctx.fillStyle = '#dbe1e6'; ctx.beginPath(); ctx.roundRect(940, currY - 12, 64, 24, 4); ctx.fill();
+                    ctx.fillStyle = '#555a5e'; ctx.font = 'bold 16px Arial'; ctx.textAlign = 'center'; ctx.fillText('x1000', 940 + 32, currY + 5);
+                }
+                
+                // Bottom right circle arrow
+                if(i === 11) drawCircleArrow(ctx, 920, currY + 22);
+                
+                currY += ySpc;
+            });
+
+            // ==========================================
+            // BOTTOM TRACES, BUTTONS, INDICATORS
+            // ==========================================
+            ctx.fillStyle = '#a0a5aa'; ctx.font = '20px Arial'; ctx.textAlign = 'left';
+            
+            // kWh, kVAh, kVARh row
+            drawCircleArrow(ctx, 310, 810);
+            ctx.fillStyle = '#e73c3e'; ctx.beginPath(); ctx.moveTo(340, 810); ctx.lineTo(325, 800); ctx.lineTo(325, 820); ctx.fill(); ctx.fillStyle = '#a0a5aa'; ctx.fillText('kWh', 350, 817);
+            ctx.fillStyle = '#111214'; ctx.beginPath(); ctx.moveTo(460, 810); ctx.lineTo(445, 800); ctx.lineTo(445, 820); ctx.fill(); ctx.fillStyle = '#a0a5aa'; ctx.fillText('kVAh', 470, 817);
+            ctx.fillStyle = '#111214'; ctx.beginPath(); ctx.moveTo(590, 810); ctx.lineTo(575, 800); ctx.lineTo(575, 820); ctx.fill(); ctx.fillStyle = '#a0a5aa'; ctx.fillText('kVARh', 600, 817);
+
+            // Traces connecting buttons (Buttons are at Canvas X: ~360, ~512, ~660, Canvas Y: ~900)
+            ctx.strokeStyle = '#a0a5aa'; ctx.lineWidth = 2.5; ctx.lineJoin = 'round';
+            ctx.beginPath();
+            ctx.moveTo(375, 880); ctx.lineTo(375, 950); ctx.lineTo(512, 950); ctx.lineTo(512, 880); // Left to Center
+            ctx.moveTo(512, 950); ctx.lineTo(650, 950); ctx.lineTo(650, 880); // Center to Right
+            ctx.stroke();
+
+            // Wrench Icon between left and center
+            ctx.lineWidth = 2.5;
+            ctx.beginPath(); ctx.arc(430, 915, 6, 0, Math.PI*2); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(434, 919); ctx.lineTo(448, 933); ctx.stroke();
+
+            // Lock Icon between center and right
+            ctx.beginPath(); ctx.roundRect(585, 920, 16, 14, 3); ctx.stroke();
+            ctx.beginPath(); ctx.arc(593, 920, 6, Math.PI, 0); ctx.stroke();
+
+            // Bottom Right LEDs
+            drawCircleArrow(ctx, 840, 780);
+            ctx.fillStyle = '#e73c3e'; ctx.beginPath(); ctx.arc(840, 815, 9, 0, Math.PI*2); ctx.fill(); // Red LED
+            ctx.beginPath(); ctx.moveTo(860, 823); ctx.lineTo(870, 807); ctx.lineTo(880, 823); ctx.fill(); // Bell icon outline
+            
+            ctx.fillStyle = '#00ff00'; ctx.beginPath(); ctx.arc(840, 855, 7, 0, Math.PI*2); ctx.fill(); // Green LED
+            
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.anisotropy = maxAnisotropy;
+            return texture;
+        }
+
+        // ==========================================
+        // 4. BUTTON TEXTURE (GREY WITH GREEN RING)
+        // ==========================================
+        function createButtonTexture(type) {
+            const canvas = document.createElement('canvas'); canvas.width = 256; canvas.height = 256; const ctx = canvas.getContext('2d');
+            
+            // Base grey (matches faceplate to look flush)
+            ctx.fillStyle = '#555a5e'; ctx.fillRect(0, 0, 256, 256);
+            
+            // Subtle lighting gradient on button
+            const grad = ctx.createLinearGradient(0,0, 256,256);
+            grad.addColorStop(0, '#6c7277'); grad.addColorStop(1, '#44484c');
+            ctx.fillStyle = grad; ctx.beginPath(); ctx.arc(128, 128, 120, 0, Math.PI*2); ctx.fill();
+
+            // Thin Green Ring
+            ctx.strokeStyle = '#00a34f'; ctx.lineWidth = 4;
+            ctx.beginPath(); ctx.arc(128, 128, 118, 0, Math.PI*2); ctx.stroke();
+
+            // Etched White Icons
+            ctx.strokeStyle = '#dbe1e6'; ctx.lineWidth = 8; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+            ctx.beginPath();
+            if(type === 'down') { 
+                ctx.moveTo(85, 110); ctx.lineTo(128, 150); ctx.lineTo(171, 110); ctx.stroke();
+            } else if (type === 'up') { 
+                ctx.moveTo(85, 150); ctx.lineTo(128, 110); ctx.lineTo(171, 150); ctx.stroke();
+            } else if (type === 'ok') { 
+                ctx.fillStyle = '#dbe1e6'; ctx.font = 'bold 56px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('OK', 128, 105);
+                // Tiny circle arrow below OK
+                ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(128, 155, 12, 0, Math.PI*2); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(122, 153); ctx.lineTo(128, 159); ctx.lineTo(134, 153); ctx.stroke();
+            }
+
+            const texture = new THREE.CanvasTexture(canvas); texture.anisotropy = maxAnisotropy; return texture;
+        }
+
+        // ==========================================
+        // 5. MESHES & INTERACTION
+        // ==========================================
+        const meterGroup = new THREE.Group(); 
+        scene.add(meterGroup);
+
+        const bodyGeo = new THREE.BoxGeometry(9.5, 9.5, 4); 
+        const bodyMat = new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 0.9 });
+        const body = new THREE.Mesh(bodyGeo, bodyMat);
+        body.receiveShadow = true; body.castShadow = true;
+        meterGroup.add(body);
+
+        let faceplateMat = new THREE.MeshStandardMaterial({ 
+            map: createFaceplateTexture(screenValues[0], screenValues[1], screenValues[2]), 
+            roughness: 0.6, metalness: 0.1
+        });
+        const faceplateGeo = new THREE.PlaneGeometry(9.4, 9.4);
+        const faceplate = new THREE.Mesh(faceplateGeo, faceplateMat);
+        faceplate.position.set(0, 0, 2.01); 
+        meterGroup.add(faceplate);
+
+        // Buttons (Placed directly on the faceplate, no big green pad)
+        function createButton(type, x, y, name) {
+            const btnGeo = new THREE.CylinderGeometry(0.65, 0.65, 0.08, 64); btnGeo.rotateX(Math.PI / 2); 
+            const sideMat = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.8 });
+            const faceMat = new THREE.MeshStandardMaterial({ map: createButtonTexture(type), roughness: 0.4 });
+            const btn = new THREE.Mesh(btnGeo, [sideMat, faceMat, sideMat]);
+            btn.rotation.z = Math.PI / 2; btn.position.set(x, y, 2.05); btn.castShadow = true; btn.receiveShadow = true; btn.name = name;
+            meterGroup.add(btn); interactableObjects.push(btn); return btn;
+        }
+
+        // Spaced out correctly on the bottom
+        createButton('down', -1.25, -3.6, "Down Button");
+        createButton('up', 0.15, -3.6, "Up Button");
+        createButton('ok', 1.55, -3.6, "OK Button");
+
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+
+        window.addEventListener('click', (event) => {
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(interactableObjects);
+
+            if (intersects.length > 0) {
+                const clickedObject = intersects[0].object; 
+                clickedObject.position.z -= 0.04;
+                setTimeout(() => clickedObject.position.z += 0.04, 150); 
+                document.getElementById('info').innerText = `Pressed: ${clickedObject.name}`;
+
+                if (clickedObject.name.includes("Down") || clickedObject.name.includes("Up")) {
+                    screenValues[0] = (Math.random() * 240 + 200).toFixed(1); 
+                    screenValues[1] = (Math.random() * 5 + 0.5).toFixed(3);   
+                    screenValues[2] = (Math.random() * 1).toFixed(3);         
+                } else if (clickedObject.name.includes("OK")) {
+                    screenValues = ["0.000", "0.000", "0.000"];
+                }
+
+                faceplate.material.map.dispose(); 
+                faceplate.material.map = createFaceplateTexture(screenValues[0], screenValues[1], screenValues[2]);
+                faceplate.material.needsUpdate = true;
+            }
+        });
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }, false);
+
+        function animate() { requestAnimationFrame(animate); controls.update(); renderer.render(scene, camera); }
+        animate(); 
+    </script>
+</body>
+</html> 

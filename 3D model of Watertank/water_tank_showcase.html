@@ -1,0 +1,1371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Industrial Tank Monitor</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+
+body{
+  background:#0e0f0f;
+  color:#8a9a8a;
+  font-family:'Courier New',Courier,monospace;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  min-height:100vh;
+  padding:0;
+  overflow-x:hidden;
+}
+
+/* ── TOP HEADER BAR ── */
+.topbar{
+  width:100%;
+  background:#0a0b0a;
+  border-bottom:1px solid #1e2a1e;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:10px 20px;
+  position:sticky;top:0;z-index:10;
+}
+.topbar-left{display:flex;align-items:center;gap:14px}
+.brand{
+  font-size:.65rem;letter-spacing:.3em;color:#4a7a4a;
+  text-transform:uppercase;border-left:2px solid #2a4a2a;padding-left:10px;
+}
+.sys-id{font-size:.58rem;color:#2e3e2e;letter-spacing:.15em}
+.topbar-right{display:flex;align-items:center;gap:18px}
+.top-stat{text-align:right}
+.top-stat-lbl{font-size:.52rem;letter-spacing:.15em;color:#2e3e2e;text-transform:uppercase}
+.top-stat-val{font-size:.78rem;font-weight:700;color:#5a8a5a;letter-spacing:.05em}
+
+/* status pill */
+.status-pill{
+  display:flex;align-items:center;gap:6px;
+  background:#0f1a0f;
+  border:1px solid #1e3a1e;
+  border-radius:2px;
+  padding:5px 10px;
+}
+.pill-dot{width:6px;height:6px;border-radius:50%;background:#3a6a3a}
+.pill-dot.ok{background:#4aaa4a;box-shadow:0 0 6px #4aaa4a88}
+.pill-dot.low{background:#aaaa22;box-shadow:0 0 6px #aaaa2288}
+.pill-dot.full{background:#aa4444;box-shadow:0 0 6px #aa444488}
+.pill-dot.off{background:#555;box-shadow:none}
+.pill-txt{font-size:.6rem;letter-spacing:.12em;color:#5a8a5a;text-transform:uppercase}
+
+/* ── MAIN LAYOUT ── */
+.main{
+  width:100%;
+  max-width:900px;
+  display:grid;
+  grid-template-columns:1fr 220px;
+  gap:0;
+  flex:1;
+}
+
+/* ── 3D CANVAS ── */
+#canvas-wrap{
+  position:relative;
+  height:520px;
+  background:#0a0c0a;
+  border-right:1px solid #161e16;
+  border-bottom:1px solid #161e16;
+  cursor:grab;
+  overflow:hidden;
+}
+#canvas-wrap:active{cursor:grabbing}
+#canvas-wrap canvas{display:block;width:100%!important;height:100%!important}
+
+/* factory floor overlay lines */
+#canvas-wrap::before{
+  content:'';
+  position:absolute;inset:0;
+  background:
+    linear-gradient(rgba(30,50,30,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(30,50,30,0.03) 1px, transparent 1px);
+  background-size:40px 40px;
+  pointer-events:none;z-index:1;
+}
+
+/* scan line effect */
+#canvas-wrap::after{
+  content:'';
+  position:absolute;inset:0;
+  background:repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0,0,0,0.04) 2px,
+    rgba(0,0,0,0.04) 4px
+  );
+  pointer-events:none;z-index:1;
+}
+
+/* canvas HUD overlays */
+.c-hud{position:absolute;z-index:2;pointer-events:none}
+.c-hud.tl{top:12px;left:12px}
+.c-hud.tr{top:12px;right:12px}
+.c-hud.bl{bottom:12px;left:12px}
+.c-hud.br{bottom:12px;right:12px}
+
+.hud-box{
+  background:rgba(8,12,8,0.88);
+  border:1px solid #1e2e1e;
+  padding:6px 10px;
+  margin-bottom:5px;
+}
+.hud-lbl{font-size:.52rem;letter-spacing:.18em;color:#2e4a2e;text-transform:uppercase;margin-bottom:2px}
+.hud-val{font-size:.9rem;font-weight:700;color:#5aaa5a;letter-spacing:.05em}
+.hud-val.warn{color:#aaaa22}
+.hud-val.danger{color:#cc4444}
+
+.hud-hint{font-size:.5rem;color:#1e2e1e;letter-spacing:.1em;text-transform:uppercase}
+
+.fill-badge{
+  background:rgba(10,30,50,0.92);
+  border:1px solid #1a4a6a;
+  padding:5px 10px;
+  display:none;
+}
+.fill-badge-txt{font-size:.55rem;letter-spacing:.2em;color:#3a8aaa;text-transform:uppercase}
+.fill-badge-val{font-size:.8rem;font-weight:700;color:#5ab8e0}
+
+/* ── RIGHT PANEL ── */
+.panel{
+  background:#090b09;
+  border-bottom:1px solid #161e16;
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+}
+
+.panel-section{
+  border-bottom:1px solid #131a13;
+  padding:14px 16px;
+}
+.panel-section:last-child{border-bottom:none;flex:1;display:flex;flex-direction:column;justify-content:flex-end}
+
+.section-title{
+  font-size:.52rem;
+  letter-spacing:.25em;
+  color:#2a3a2a;
+  text-transform:uppercase;
+  margin-bottom:12px;
+  padding-bottom:6px;
+  border-bottom:1px solid #131a13;
+}
+
+/* Big level gauge in panel */
+.level-gauge-wrap{
+  display:flex;
+  gap:12px;
+  align-items:flex-end;
+  margin-bottom:10px;
+}
+.gauge-bar-outer{
+  width:18px;
+  height:160px;
+  background:#0d120d;
+  border:1px solid #1a2a1a;
+  position:relative;
+  flex-shrink:0;
+}
+.gauge-bar-inner{
+  position:absolute;
+  bottom:0;left:0;right:0;
+  background:linear-gradient(to top, #1a5a2a, #2a9a4a);
+  transition:height 0.4s ease;
+}
+.gauge-ticks{
+  position:absolute;
+  top:0;bottom:0;right:-22px;
+  display:flex;flex-direction:column;justify-content:space-between;
+  width:20px;
+}
+.gauge-tick{
+  display:flex;align-items:center;gap:3px;
+}
+.gauge-tick-line{width:6px;height:1px;background:#1a2a1a}
+.gauge-tick-lbl{font-size:.44rem;color:#2a3a2a;letter-spacing:.05em}
+
+.level-number{
+  flex:1;
+  display:flex;flex-direction:column;justify-content:flex-end;
+  padding-bottom:4px;
+}
+.level-big{font-size:2.8rem;font-weight:700;color:#3a8a4a;line-height:1;letter-spacing:-.02em}
+.level-unit{font-size:.6rem;color:#2a3a2a;letter-spacing:.2em;text-transform:uppercase;margin-top:4px}
+
+/* data rows */
+.data-row{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:6px 0;
+  border-bottom:1px solid #0f150f;
+}
+.data-row:last-child{border-bottom:none}
+.data-key{font-size:.58rem;letter-spacing:.1em;color:#2a3a2a;text-transform:uppercase}
+.data-val{font-size:.68rem;font-weight:700;color:#4a6a4a;letter-spacing:.05em}
+.data-val.green{color:#4aaa4a}
+.data-val.yellow{color:#aaaa22}
+.data-val.red{color:#cc4444}
+.data-val.blue{color:#4a8aaa}
+
+/* ── BOTTOM CONTROL BAR ── */
+.ctrlbar{
+  width:100%;
+  max-width:900px;
+  background:#090b09;
+  border-top:1px solid #161e16;
+  display:flex;
+  gap:0;
+}
+.ctrl-cell{
+  flex:1;
+  padding:14px 18px;
+  border-right:1px solid #131a13;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+.ctrl-cell:last-child{border-right:none}
+.ctrl-title{font-size:.52rem;letter-spacing:.22em;color:#2a3a2a;text-transform:uppercase;margin-bottom:4px}
+
+/* range slider - industrial style */
+input[type=range]{
+  -webkit-appearance:none;
+  width:100%;height:4px;
+  background:linear-gradient(to right,#2a6a2a var(--v,60%),#111811 var(--v,60%));
+  border-radius:0;outline:none;
+  border:none;
+  cursor:pointer;
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;
+  width:12px;height:20px;
+  background:#3a7a3a;
+  border-radius:0;
+  cursor:pointer;
+  border:none;
+}
+.slider-row{display:flex;align-items:center;gap:10px}
+.slider-val{font-size:.72rem;font-weight:700;color:#4a8a4a;letter-spacing:.05em;min-width:38px}
+
+/* pump toggle - industrial button style */
+.pump-btn{
+  display:flex;align-items:center;gap:12px;
+}
+.ind-btn{
+  background:#0d120d;
+  border:1px solid #1e2e1e;
+  color:#3a5a3a;
+  font-family:'Courier New',monospace;
+  font-size:.62rem;
+  letter-spacing:.18em;
+  text-transform:uppercase;
+  padding:8px 16px;
+  cursor:pointer;
+  transition:all .2s;
+  outline:none;
+  position:relative;
+  overflow:hidden;
+}
+.ind-btn.on{
+  background:#0d1e0d;
+  border-color:#2a5a2a;
+  color:#4aaa4a;
+  box-shadow:inset 0 0 12px rgba(42,90,42,0.3), 0 0 8px rgba(42,90,42,0.2);
+}
+.ind-btn.off{
+  background:#1a0d0d;
+  border-color:#3a1a1a;
+  color:#aa4444;
+  box-shadow:inset 0 0 8px rgba(90,20,20,0.2);
+}
+.ind-btn::before{
+  content:'';position:absolute;top:0;left:0;
+  width:3px;height:100%;
+  background:#2a4a2a;
+}
+.ind-btn.on::before{background:#4aaa4a}
+.ind-btn.off::before{background:#aa4444}
+
+.pump-status{
+  display:flex;flex-direction:column;
+  gap:3px;
+}
+.pump-status-lbl{font-size:.5rem;letter-spacing:.15em;color:#2a3a2a;text-transform:uppercase}
+.pump-status-val{font-size:.72rem;font-weight:700;color:#4aaa4a;letter-spacing:.05em}
+
+/* ── ACTION BUTTONS (Fill / Discharge) ── */
+.action-btn{
+  flex:1;
+  background:#0d120d;
+  border:1px solid #1e2e1e;
+  color:#3a5a4a;
+  font-family:'Courier New',monospace;
+  font-size:.58rem;
+  letter-spacing:.16em;
+  text-transform:uppercase;
+  padding:10px 8px 10px 12px;
+  cursor:pointer;
+  transition:all .18s;
+  outline:none;
+  position:relative;
+  overflow:hidden;
+  display:flex;
+  flex-direction:column;
+  align-items:flex-start;
+  gap:4px;
+}
+.action-btn::before{
+  content:'';position:absolute;top:0;left:0;
+  width:3px;height:100%;background:#2a4a2a;
+  transition:background .18s;
+}
+.action-btn:disabled{
+  opacity:.35;cursor:not-allowed;
+}
+/* Fill button */
+.action-btn.fill-btn::before{background:#1a4a6a}
+.action-btn.fill-btn{border-color:#1a3a5a;color:#3a7aaa}
+.action-btn.fill-btn:not(:disabled):hover{
+  background:#0a1a2a;border-color:#2a5a8a;color:#5aaae0;
+  box-shadow:inset 0 0 10px rgba(30,80,140,0.25),0 0 6px rgba(30,80,140,0.15);
+}
+.action-btn.fill-btn.active-mode{
+  background:#0a1825;border-color:#3a6aaa;color:#5ab0e8;
+  box-shadow:inset 0 0 14px rgba(30,80,160,0.35),0 0 10px rgba(30,80,160,0.2);
+  animation:fillPulse 1.8s ease-in-out infinite;
+}
+.action-btn.fill-btn.active-mode::before{background:#4a8acc;box-shadow:0 0 6px #4a8acc}
+@keyframes fillPulse{0%,100%{box-shadow:inset 0 0 14px rgba(30,80,160,0.35),0 0 8px rgba(30,80,160,0.15)}
+  50%{box-shadow:inset 0 0 20px rgba(30,80,160,0.5),0 0 14px rgba(30,80,160,0.3)}}
+
+/* Discharge button */
+.action-btn.disc-btn::before{background:#4a2a1a}
+.action-btn.disc-btn{border-color:#3a1e10;color:#8a5a3a}
+.action-btn.disc-btn:not(:disabled):hover{
+  background:#1a0e08;border-color:#6a3a1a;color:#cc8855;
+  box-shadow:inset 0 0 10px rgba(120,60,20,0.25),0 0 6px rgba(120,60,20,0.15);
+}
+.action-btn.disc-btn.active-mode{
+  background:#1a0c05;border-color:#8a4a1a;color:#dd9955;
+  box-shadow:inset 0 0 14px rgba(140,60,20,0.35),0 0 10px rgba(140,60,20,0.2);
+  animation:discPulse 1.8s ease-in-out infinite;
+}
+.action-btn.disc-btn.active-mode::before{background:#cc7733;box-shadow:0 0 6px #cc7733}
+@keyframes discPulse{0%,100%{box-shadow:inset 0 0 14px rgba(140,60,20,0.35),0 0 8px rgba(140,60,20,0.15)}
+  50%{box-shadow:inset 0 0 20px rgba(140,60,20,0.5),0 0 14px rgba(140,60,20,0.3)}}
+
+.action-btn-icon{font-size:.9rem;line-height:1}
+.action-btn-lbl{font-size:.56rem;letter-spacing:.18em}
+.action-btn-sub{font-size:.48rem;letter-spacing:.1em;opacity:.6;margin-top:1px}
+.action-row{display:flex;gap:8px;width:100%}
+
+/* ── ALERT STRIP ── */
+.alert-strip{
+  width:100%;max-width:900px;
+  background:#0d0a0a;
+  border-top:1px solid #2a1a1a;
+  display:none;
+  padding:6px 20px;
+  align-items:center;
+  gap:10px;
+}
+.alert-strip.show{display:flex}
+.alert-strip.low{border-top-color:#5a5a00;background:#0c0c06}
+.alert-strip.full{border-top-color:#5a1a1a;background:#0c0606}
+.alert-icon{font-size:.6rem;color:#888822;letter-spacing:.1em}
+.alert-strip.full .alert-icon{color:#aa4444}
+.alert-msg{font-size:.58rem;letter-spacing:.15em;color:#555522;text-transform:uppercase}
+.alert-strip.full .alert-msg{color:#884444}
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <div class="topbar-left">
+    <div>
+      <div class="brand">FlowTech Industries</div>
+      <div class="sys-id">SCADA / UNIT-01 / TANK-A</div>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <div class="top-stat">
+      <div class="top-stat-lbl">System</div>
+      <div class="top-stat-val" id="sys-time">--:--:--</div>
+    </div>
+    <div class="status-pill">
+      <div class="pill-dot ok" id="sys-dot"></div>
+      <div class="pill-txt" id="sys-txt">OPERATIONAL</div>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+
+  <!-- 3D Canvas -->
+  <div id="canvas-wrap">
+    <canvas id="c"></canvas>
+
+    <div class="c-hud tl">
+      <div class="hud-box">
+        <div class="hud-lbl">Water Level</div>
+        <div class="hud-val" id="hud-lvl">60%</div>
+      </div>
+      <div class="hud-box">
+        <div class="hud-lbl">Fill Rate</div>
+        <div class="hud-val" id="hud-rate">+0.0%/s</div>
+      </div>
+    </div>
+
+    <div class="c-hud tr">
+      <div class="fill-badge" id="fill-badge">
+        <div class="fill-badge-txt" id="fill-badge-txt">&#9660; Filling</div>
+        <div class="fill-badge-val" id="fill-pct">+0%</div>
+      </div>
+    </div>
+
+    <div class="c-hud bl">
+      <div class="hud-hint">drag · rotate &nbsp;|&nbsp; scroll · zoom</div>
+    </div>
+
+    <div class="c-hud br">
+      <div class="hud-box">
+        <div class="hud-lbl">Pump</div>
+        <div class="hud-val" id="hud-pump">OFF</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right Panel -->
+  <div class="panel">
+
+    <div class="panel-section">
+      <div class="section-title">Tank Level</div>
+      <div class="level-gauge-wrap">
+        <div class="gauge-bar-outer">
+          <div class="gauge-bar-inner" id="gauge-fill" style="height:0%"></div>
+        </div>
+        <div class="gauge-ticks">
+          <div class="gauge-tick"><div class="gauge-tick-line"></div><div class="gauge-tick-lbl">100</div></div>
+          <div class="gauge-tick"><div class="gauge-tick-line"></div><div class="gauge-tick-lbl">75</div></div>
+          <div class="gauge-tick"><div class="gauge-tick-line"></div><div class="gauge-tick-lbl">50</div></div>
+          <div class="gauge-tick"><div class="gauge-tick-line"></div><div class="gauge-tick-lbl">25</div></div>
+          <div class="gauge-tick"><div class="gauge-tick-line"></div><div class="gauge-tick-lbl">0</div></div>
+        </div>
+        <div class="level-number">
+          <div class="level-big" id="p-level">0</div>
+          <div class="level-unit">percent full</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel-section">
+      <div class="section-title">Telemetry</div>
+      <div class="data-row">
+        <span class="data-key">Status</span>
+        <span class="data-val green" id="p-status">NORMAL</span>
+      </div>
+      <div class="data-row">
+        <span class="data-key">Fill Rate</span>
+        <span class="data-val blue" id="p-rate">+0.0%/s</span>
+      </div>
+      <div class="data-row">
+        <span class="data-key">Pump</span>
+        <span class="data-val red" id="p-pump">STOPPED</span>
+      </div>
+      <div class="data-row">
+        <span class="data-key">Target</span>
+        <span class="data-val" id="p-target">0%</span>
+      </div>
+      <div class="data-row">
+        <span class="data-key">Est. Full</span>
+        <span class="data-val" id="p-eta">--</span>
+      </div>
+    </div>
+
+    <div class="panel-section">
+      <div class="section-title">System</div>
+      <div class="data-row">
+        <span class="data-key">Sensor</span>
+        <span class="data-val green">ONLINE</span>
+      </div>
+      <div class="data-row">
+        <span class="data-key">Valve</span>
+        <span class="data-val red" id="p-valve">CLOSED</span>
+      </div>
+      <div class="data-row">
+        <span class="data-key">Alarms</span>
+        <span class="data-val" id="p-alarms">NONE</span>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- BOTTOM CONTROLS -->
+<div class="ctrlbar">
+  <div class="ctrl-cell">
+    <div class="ctrl-title">Auto Operations</div>
+    <div class="action-row">
+      <button class="action-btn fill-btn" id="fill-btn" onclick="triggerFill()">
+        <span class="action-btn-icon">&#9650;</span>
+        <span class="action-btn-lbl">Fill</span>
+        <span class="action-btn-sub">Auto to 100%</span>
+      </button>
+      <button class="action-btn disc-btn" id="disc-btn" onclick="triggerDischarge()">
+        <span class="action-btn-icon">&#9660;</span>
+        <span class="action-btn-lbl">Discharge</span>
+        <span class="action-btn-sub">Auto to 0%</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="ctrl-cell">
+    <div class="ctrl-title">Pump Control</div>
+    <div class="pump-btn">
+      <button class="ind-btn off" id="pump-btn" onclick="togglePump()">
+        &#9632; PUMP OFF
+      </button>
+      <div class="pump-status">
+        <div class="pump-status-lbl">State</div>
+        <div class="pump-status-val" id="pump-state-val" style="color:#cc4444">STOPPED</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ctrl-cell">
+    <div class="ctrl-title">Camera</div>
+    <div class="slider-row">
+      <input type="range" id="cam-sl" min="6" max="22" value="13" step="0.5"
+        oninput="onCamZoom(this.value)" style="--v:44%">
+      <span class="slider-val">Zoom</span>
+    </div>
+  </div>
+</div>
+
+<!-- ALERT STRIP -->
+<div class="alert-strip" id="alert-strip">
+  <div class="alert-icon" id="alert-icon">&#9888; WARNING</div>
+  <div class="alert-msg" id="alert-msg">LOW WATER LEVEL — BELOW 15%</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ═══════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════
+let level    = 30;  // current displayed level — starts at 30% for showcase
+let target   = 30;  // simulation target level
+let pumpOn   = false;
+let fillRate = 0;
+let autoMode = null; // 'fill' | 'discharge' | null
+
+// ═══════════════════════════════════════════════════════════
+// RENDERER
+// ═══════════════════════════════════════════════════════════
+const wrap = document.getElementById('canvas-wrap');
+const cnv  = document.getElementById('c');
+let W = wrap.clientWidth, H = wrap.clientHeight;
+
+const renderer = new THREE.WebGLRenderer({canvas:cnv, antialias:true, alpha:false});
+renderer.setSize(W,H);
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type    = THREE.PCFSoftShadowMap;
+renderer.setClearColor(0x0a0c0a);
+
+const scene = new THREE.Scene();
+scene.fog   = new THREE.FogExp2(0x0a0c0a, 0.038);
+
+// ═══════════════════════════════════════════════════════════
+// CAMERA + ORBIT
+// ═══════════════════════════════════════════════════════════
+const camera = new THREE.PerspectiveCamera(40, W/H, 0.1, 80);
+let camTheta = 0.6, camPhi = 0.52, camDist = 13;
+const PIVOT  = new THREE.Vector3(0, 2.6, 0);
+
+function applyCamera(){
+  camera.position.set(
+    PIVOT.x + camDist*Math.sin(camPhi)*Math.sin(camTheta),
+    PIVOT.y + camDist*Math.cos(camPhi),
+    PIVOT.z + camDist*Math.sin(camPhi)*Math.cos(camTheta)
+  );
+  camera.lookAt(PIVOT);
+}
+applyCamera();
+
+let drag=false, ox=0, oy=0;
+wrap.addEventListener('mousedown', e=>{drag=true;ox=e.clientX;oy=e.clientY;e.preventDefault();});
+window.addEventListener('mouseup', ()=>drag=false);
+window.addEventListener('mousemove', e=>{
+  if(!drag)return;
+  camTheta -= (e.clientX-ox)*0.006; ox=e.clientX;
+  camPhi = Math.max(0.1,Math.min(1.5,camPhi+(e.clientY-oy)*0.006)); oy=e.clientY;
+  applyCamera();
+});
+wrap.addEventListener('touchstart',e=>{
+  if(e.touches.length===1){drag=true;ox=e.touches[0].clientX;oy=e.touches[0].clientY;}
+},{passive:true});
+window.addEventListener('touchend',()=>drag=false);
+window.addEventListener('touchmove',e=>{
+  if(!drag||e.touches.length!==1)return;
+  camTheta -= (e.touches[0].clientX-ox)*0.006; ox=e.touches[0].clientX;
+  camPhi = Math.max(0.1,Math.min(1.5,camPhi+(e.touches[0].clientY-oy)*0.006)); oy=e.touches[0].clientY;
+  applyCamera();
+},{passive:true});
+wrap.addEventListener('wheel',e=>{
+  camDist=Math.max(5,Math.min(22,camDist+e.deltaY*0.016));
+  applyCamera();
+  const pct=((camDist-5)/(22-5)*100).toFixed(0);
+  document.getElementById('cam-sl').value=camDist;
+  document.getElementById('cam-sl').style.setProperty('--v',pct+'%');
+},{passive:true});
+
+// ═══════════════════════════════════════════════════════════
+// LIGHTS  — factory warehouse feel
+// ═══════════════════════════════════════════════════════════
+scene.add(new THREE.AmbientLight(0x1a2a1a, 1.8));
+
+// Main overhead industrial light (warm sodium)
+const overhead = new THREE.DirectionalLight(0xffeedd, 1.2);
+overhead.position.set(3,14,5);
+overhead.castShadow=true;
+overhead.shadow.mapSize.set(2048,2048);
+Object.assign(overhead.shadow.camera,{near:1,far:40,left:-10,right:10,top:14,bottom:-2});
+scene.add(overhead);
+
+// Cool fill from side (fluorescent)
+const side = new THREE.DirectionalLight(0xddeeff, 0.4);
+side.position.set(-8,6,-4); scene.add(side);
+
+// Two point lights simulating hanging lamps
+[-3.5,3.5].forEach(x=>{
+  const lamp = new THREE.PointLight(0xffeecc,0.5,12);
+  lamp.position.set(x,9,0); scene.add(lamp);
+  // Lamp housing
+  const h=new THREE.Mesh(new THREE.CylinderGeometry(0.18,0.3,0.25,12),
+    new THREE.MeshStandardMaterial({color:0x2a2a2a,roughness:0.6,metalness:0.7}));
+  h.position.copy(lamp.position); h.position.y-=0.1; scene.add(h);
+  // Pendant wire
+  const wire=new THREE.Mesh(new THREE.CylinderGeometry(0.01,0.01,2,6),
+    new THREE.MeshStandardMaterial({color:0x111111}));
+  wire.position.set(x,10.1,0); scene.add(wire);
+});
+
+// ═══════════════════════════════════════════════════════════
+// MATERIALS
+// ═══════════════════════════════════════════════════════════
+const M = {
+  steel:    new THREE.MeshStandardMaterial({color:0x545e66,roughness:0.4,metalness:0.9}),
+  darkSteel:new THREE.MeshStandardMaterial({color:0x363e44,roughness:0.5,metalness:0.85}),
+  black:    new THREE.MeshStandardMaterial({color:0x1a1e1a,roughness:0.7,metalness:0.5}),
+  concrete: new THREE.MeshStandardMaterial({color:0x1a1e18,roughness:0.95,metalness:0.0}),
+  concreteL:new THREE.MeshStandardMaterial({color:0x1e2220,roughness:0.9,metalness:0.0}),
+  glass:    new THREE.MeshPhysicalMaterial({color:0xaaccbb,transparent:true,opacity:0.15,roughness:0.03,metalness:0.05,side:THREE.DoubleSide}),
+  yellow:   new THREE.MeshStandardMaterial({color:0x8a7a00,roughness:0.5,metalness:0.3}),
+  red:      new THREE.MeshStandardMaterial({color:0x8a2020,roughness:0.5,metalness:0.4}),
+  blue:     new THREE.MeshStandardMaterial({color:0x1a3a6a,roughness:0.4,metalness:0.7}),
+  rust:     new THREE.MeshStandardMaterial({color:0x5a3020,roughness:0.9,metalness:0.1}),
+};
+
+function box(w,h,d,mat,cast=true){
+  const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);
+  m.castShadow=cast; m.receiveShadow=true; return m;
+}
+function cyl(rt,rb,h,mat,seg=24){
+  const m=new THREE.Mesh(new THREE.CylinderGeometry(rt,rb,h,seg),mat);
+  m.castShadow=true; m.receiveShadow=true; return m;
+}
+function add(m){scene.add(m);return m;}
+
+// ═══════════════════════════════════════════════════════════
+// FACTORY ENVIRONMENT
+// ═══════════════════════════════════════════════════════════
+
+// Concrete floor with subtle tile grid
+const floor = add(new THREE.Mesh(new THREE.PlaneGeometry(40,40), M.concrete));
+floor.rotation.x=-Math.PI/2; floor.receiveShadow=true;
+
+// Floor tile lines (just geometry)
+for(let i=-5;i<=5;i++){
+  const hl=add(box(40,0.005,0.02,M.concreteL,false));
+  hl.position.set(0,0.002,i*2.5);
+  const vl=add(box(0.02,0.005,40,M.concreteL,false));
+  vl.position.set(i*2.5,0.002,0);
+}
+
+// Back wall
+const wall = add(new THREE.Mesh(new THREE.PlaneGeometry(28,14), M.concrete));
+wall.position.set(0,7,-8); wall.receiveShadow=true;
+
+// Side wall (partial)
+const wallR = add(new THREE.Mesh(new THREE.PlaneGeometry(14,14), M.concrete));
+wallR.rotation.y=-Math.PI/2; wallR.position.set(12,7,0); wallR.receiveShadow=true;
+
+// Safety stripes on floor around tank
+const stripeGeo = new THREE.PlaneGeometry(6,6);
+const stripeMat = new THREE.MeshStandardMaterial({color:0x1a1800,roughness:1,metalness:0});
+const stripes = add(new THREE.Mesh(stripeGeo, stripeMat));
+stripes.rotation.x=-Math.PI/2; stripes.position.set(0,0.001,0);
+
+// Yellow warning border lines (4 sides)
+[[5,0.05,0.12],[5,0.05,0.12],[-2.55,0.05,6.1],[2.55,0.05,6.1]].forEach((_,i)=>{
+  const s=add(box(i<2?6:0.12,0.02,i<2?0.1:6,M.yellow,false));
+  if(i===0)s.position.set(0,0.01,2.8);
+  if(i===1)s.position.set(0,0.01,-2.8);
+  if(i===2)s.position.set(-2.8,0.01,0);
+  if(i===3)s.position.set(2.8,0.01,0);
+});
+
+// Background machinery (silhouettes — large industrial equipment behind)
+[
+  {x:-9,z:-5,w:2.5,h:7,d:1.5},
+  {x:-7,z:-6,w:1.2,h:9,d:1.2},
+  {x: 9,z:-4,w:3,  h:5,d:2},
+  {x: 8,z:-6,w:1,  h:8,d:1},
+].forEach(({x,z,w,h,d})=>{
+  const b=add(box(w,h,d,M.black));
+  b.position.set(x,h/2,z);
+});
+
+// Pipe runs along the back wall (horizontal)
+[2.5,4.0].forEach(y=>{
+  const pipe=add(cyl(0.07,0.07,18,M.darkSteel,12));
+  pipe.rotation.z=Math.PI/2; pipe.position.set(0,y,-6.5);
+  // Flanges on pipe
+  for(let x=-7;x<=7;x+=3.5){
+    const f=add(cyl(0.11,0.11,0.1,M.steel,16)); f.rotation.z=Math.PI/2;
+    f.position.set(x,y,-6.5);
+  }
+});
+
+// Vertical pipe on right
+const vpipe=add(cyl(0.07,0.07,7,M.darkSteel,12));
+vpipe.position.set(6,3.5,-6.5);
+
+// Electrical conduits on wall
+for(let y=2;y<=8;y+=2){
+  const c=add(box(8,0.05,0.05,M.black,false));
+  c.position.set(-2,y,-7.8);
+}
+
+// Control cabinet on back wall
+const cab=add(box(1.4,2.2,0.3,M.darkSteel));
+cab.position.set(-7,1.1,-7.6);
+const cabDoor=add(box(1.1,1.8,0.05,M.black));
+cabDoor.position.set(-7,1.1,-7.42);
+// Cabinet indicators
+[[0.15,0.2],[0.15,-0.1],[0.15,-0.4]].forEach(([dx,dy],i)=>{
+  const ind=add(new THREE.Mesh(new THREE.CircleGeometry(0.06,12),
+    [M.yellow,M.red,new THREE.MeshStandardMaterial({color:0x00aa00})][i]));
+  ind.rotation.y=Math.PI/2; ind.position.set(-7+dx,-0.1+dy,-7.4);
+  // Point light for each indicator
+  const il=new THREE.PointLight([0xaaaa00,0xaa0000,0x00aa00][i],0.3,1.5);
+  il.position.copy(ind.position); scene.add(il);
+});
+
+// ═══════════════════════════════════════════════════════════
+// CAGE FRAME
+// ═══════════════════════════════════════════════════════════
+const cW=4.6, cH=6.2, cD=4.6, pW=0.2;
+
+[[-1,1],[-1,-1],[1,1],[1,-1]].forEach(([sx,sz])=>{
+  const p=add(box(pW,cH,pW,M.darkSteel));
+  p.position.set(sx*(cW/2),cH/2,sz*(cD/2));
+  // Corner gussets
+  const g=add(box(0.3,0.3,pW,M.black));
+  g.position.set(sx*(cW/2),0.15,sz*(cD/2));
+});
+
+// Horizontal beams top and bottom
+[0,cH/2,cH].forEach(y=>{
+  [[-1],[1]].forEach(([s])=>{
+    const bx=add(box(cW+pW,pW,pW,y===cH/2?M.black:M.darkSteel));
+    bx.position.set(0,y,s*(cD/2));
+    const bz=add(box(pW,pW,cD+pW,y===cH/2?M.black:M.darkSteel));
+    bz.position.set(s*(cW/2),y,0);
+  });
+});
+
+// Base pallet
+['x','z'].forEach(axis=>[-1,0,1].forEach(t=>{
+  const b=add(box(axis==='x'?cW+pW:pW*2.5,0.18,axis==='x'?pW*2.5:cD+pW,M.black));
+  b.position.set(axis==='x'?0:t*(cW/3),-0.09,axis==='x'?t*(cD/3):0);
+}));
+
+// Cage serial plate
+const plate=add(box(0.6,0.3,0.02,M.rust));
+plate.position.set(cW/2,1.5,cD/2);
+
+// ═══════════════════════════════════════════════════════════
+// TANK
+// ═══════════════════════════════════════════════════════════
+const tR=1.55, tH=3.8, tY=0.5;
+
+// Glass cylinder
+const glass=add(new THREE.Mesh(new THREE.CylinderGeometry(tR,tR,tH,64,1,true),M.glass));
+glass.position.y=tY+tH/2;
+
+// Bottom dish
+const bot=add(cyl(tR+0.08,tR+0.18,0.38,M.darkSteel,48));
+bot.position.y=tY-0.08;
+
+// Dome
+const dome=add(new THREE.Mesh(
+  new THREE.SphereGeometry(tR+0.04,48,24,0,Math.PI*2,0,Math.PI/2.5), M.steel));
+dome.position.y=tY+tH;
+
+// Top hatch + knob
+const hatch=add(cyl(0.42,0.42,0.1,M.steel,24)); hatch.position.y=tY+tH+0.4;
+const kpost=add(box(0.06,0.35,0.06,M.steel)); kpost.position.y=tY+tH+0.6;
+const knob=add(cyl(0.1,0.08,0.12,new THREE.MeshStandardMaterial({color:0x9a7800,roughness:0.2,metalness:0.9}),16));
+knob.position.y=tY+tH+0.8;
+
+// Pressure gauge on dome
+const pgBase=add(cyl(0.18,0.18,0.08,M.darkSteel,20)); pgBase.position.set(0.6,tY+tH+0.15,0);
+const pgFace=add(new THREE.Mesh(new THREE.CircleGeometry(0.14,20),
+  new THREE.MeshStandardMaterial({color:0xdde8d0,roughness:0.8})));
+pgFace.rotation.x=-Math.PI/2; pgFace.position.set(0.6,tY+tH+0.2,0);
+
+// ═══════════════════════════════════════════════════════════
+// WATER BODY
+// ═══════════════════════════════════════════════════════════
+const waterMat = new THREE.MeshPhysicalMaterial({
+  color:0x1a5a78,transparent:true,opacity:0.88,roughness:0.04,metalness:0.0
+});
+const water = add(new THREE.Mesh(new THREE.CylinderGeometry(tR-0.07,tR-0.07,1,48),waterMat));
+water.visible = false; // starts empty
+
+const surfMat = new THREE.MeshPhysicalMaterial({
+  color:0x2a8aaa,transparent:true,opacity:0.6,roughness:0.01
+});
+const surf = add(new THREE.Mesh(new THREE.CircleGeometry(tR-0.08,48),surfMat));
+surf.rotation.x=-Math.PI/2;
+surf.visible = false; // starts empty
+
+// ═══════════════════════════════════════════════════════════
+// GAUGE TUBE
+// ═══════════════════════════════════════════════════════════
+const gX=tR+0.26, gBot=tY+0.18, gTop=tY+tH-0.22, gLen=gTop-gBot;
+
+add(new THREE.Mesh(new THREE.CylinderGeometry(0.052,0.052,gLen,16,1,true),
+  new THREE.MeshPhysicalMaterial({color:0xcceecc,transparent:true,opacity:0.22,roughness:0.02,side:THREE.DoubleSide})
+)).position.set(gX,gBot+gLen/2,0.5);
+
+const gwMat=new THREE.MeshStandardMaterial({color:0x2a8aaa,transparent:true,opacity:0.85});
+const gw=add(new THREE.Mesh(new THREE.CylinderGeometry(0.038,0.038,1,16),gwMat));
+
+[gBot,gBot+gLen].forEach(y=>{
+  const c=add(cyl(0.06,0.06,0.05,M.steel,12)); c.position.set(gX,y,0.5);
+});
+[gBot+0.1,gTop-0.1].forEach(y=>{
+  const n=add(box(0.22,0.05,0.05,M.darkSteel)); n.position.set(gX-0.12,y,0.5);
+});
+
+// ═══════════════════════════════════════════════════════════
+// VALVE / PIPE ASSEMBLY
+// ═══════════════════════════════════════════════════════════
+const vY=tY+0.55, vX=-(tR+0.1);
+
+// Main pipe run
+[
+  {p:[vX-0.3,vY,-0.4], r:[0,0,Math.PI/2], l:0.7},
+  {p:[vX-0.8,vY-0.4,-0.4], r:[0,0,0], l:0.8},
+  {p:[vX-1.0,vY-0.85,-0.4], r:[0,0,Math.PI/2], l:0.5},
+].forEach(({p,r,l})=>{
+  const pipe=add(cyl(0.07,0.07,l,M.darkSteel,12));
+  pipe.rotation.set(...r); pipe.position.set(...p);
+});
+
+// Valve body
+const vb=add(cyl(0.2,0.2,0.3,M.blue,20)); vb.rotation.z=Math.PI/2; vb.position.set(vX-0.55,vY,-0.4);
+// Valve stem
+const vs=add(box(0.04,0.35,0.04,M.steel)); vs.position.set(vX-0.55,vY+0.28,-0.4);
+// Handwheel
+const hw=add(new THREE.Mesh(new THREE.TorusGeometry(0.2,0.03,8,24),
+  new THREE.MeshStandardMaterial({color:0x1a3055,roughness:0.3,metalness:0.8})));
+hw.position.set(vX-0.55,vY+0.46,-0.4);
+
+// Pump motor
+const pm=add(cyl(0.28,0.28,0.5,M.blue,24)); pm.rotation.z=Math.PI/2; pm.position.set(vX-1.15,vY-0.85,-0.4);
+const pmEnd=add(cyl(0.3,0.3,0.06,M.darkSteel,24)); pmEnd.rotation.z=Math.PI/2; pmEnd.position.set(vX-0.88,vY-0.85,-0.4);
+
+// Pump light
+const pLight=new THREE.PointLight(0x00ff88,0,2.5); pLight.position.set(vX-1.15,vY-0.5,-0.4); scene.add(pLight);
+const pGlow=add(new THREE.Mesh(new THREE.SphereGeometry(0.06,12,12),
+  new THREE.MeshBasicMaterial({color:0x00ff88,transparent:true,opacity:0})));
+pGlow.position.copy(pLight.position);
+
+// ═══════════════════════════════════════════════════════════
+// LADDER
+// ═══════════════════════════════════════════════════════════
+const lX=cW/2+0.12;
+[-0.12,0.12].forEach(ox=>{
+  const r=add(box(0.05,cH*0.88,0.05,M.darkSteel)); r.position.set(lX+ox,cH*0.44,cD/2-0.1);
+});
+for(let i=0;i<9;i++){
+  const r=add(box(0.28,0.04,0.05,M.black)); r.position.set(lX,0.5+i*0.6,cD/2-0.1);
+}
+
+// ═══════════════════════════════════════════════════════════
+// WATER DROP SYSTEM  — clean, smooth, instanced approach
+// ═══════════════════════════════════════════════════════════
+// Single instanced mesh for all drops = no jitter, no per-frame mesh toggle
+const DROP_COUNT = 40;
+const dropGeo  = new THREE.SphereGeometry(1, 7, 7); // unit sphere, scaled per instance
+const dropIMat = new THREE.MeshPhysicalMaterial({
+  color:0x44aadd, transparent:true, opacity:0.82,
+  roughness:0.05, metalness:0.0, depthWrite:false
+});
+const dropMesh = new THREE.InstancedMesh(dropGeo, dropIMat, DROP_COUNT);
+dropMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+dropMesh.count = 0;  // start with none visible
+scene.add(dropMesh);
+
+// Splash ring instanced mesh
+const SPLASH_COUNT = 16;
+const splashGeo  = new THREE.RingGeometry(0.8, 1.0, 20);
+const splashIMat = new THREE.MeshBasicMaterial({
+  color:0x88ccee, transparent:true, opacity:0.0,
+  side:THREE.DoubleSide, depthWrite:false
+});
+const splashMesh = new THREE.InstancedMesh(splashGeo, splashIMat, SPLASH_COUNT);
+splashMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+// NO mesh.rotation here — we bake the flat orientation into each instance quaternion
+splashMesh.count = 0;
+scene.add(splashMesh);
+
+// Quaternion that rotates ring geometry flat (face-up on XZ plane)
+const _splashQuat = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI/2, 0, 0));
+
+// Drop state (no Three objects per drop — just data)
+const dState = Array.from({length:DROP_COUNT}, ()=>({
+  active:false, x:0, y:0, z:0, vy:0, age:0, r:0.048
+}));
+// Splash state
+const sState = Array.from({length:SPLASH_COUNT}, ()=>({
+  active:false, x:0, y:0, z:0, age:0, maxAge:0.5
+}));
+
+const _mat4  = new THREE.Matrix4();
+const _scale = new THREE.Vector3();
+const _pos   = new THREE.Vector3();
+const _quat  = new THREE.Quaternion();
+
+function spawnDrop(){
+  const d = dState.find(d=>!d.active);
+  if(!d) return;
+  const ang = Math.random()*Math.PI*2;
+  const r   = Math.random()*(tR-0.25);  // strictly inside tank glass wall
+  d.x = Math.cos(ang)*r;
+  d.z = Math.sin(ang)*r;
+  d.y = tY + tH + 0.3 + Math.random()*0.3;
+  d.vy= -(0.6 + Math.random()*0.8);
+  d.age   = 0;
+  d.r     = 0.042 + Math.random()*0.018;
+  d.active= true;
+}
+
+function spawnSplash(x, y, z){
+  const s = sState.find(s=>!s.active);
+  if(!s) return;
+  s.x=x; s.y=y; s.z=z;
+  s.age=0; s.maxAge=0.45+Math.random()*0.15;
+  s.active=true;
+}
+
+let dropTimer=0;
+const GRAVITY = 9.0;
+
+function updateDropSystem(dt){
+  const waterTop = tY + (level/100)*tH;
+
+  // Detect real movement from actual level change
+  // fillRate > 0 means water is rising (Factory I/O is filling)
+  // fillRate < 0 means water is falling (Factory I/O is draining)
+  const isFilling     = fillRate > 0.05;
+  const isDischarging = fillRate < -0.05;
+
+  // Badge
+  const badge = document.getElementById('fill-badge');
+  const badgeTxt = document.getElementById('fill-badge-txt');
+  if(isFilling){
+    badge.style.display='block';
+    badge.style.borderColor='#1a4a6a'; badge.style.background='rgba(10,30,50,0.92)';
+    badgeTxt.style.color='#3a8aaa';
+    badgeTxt.textContent='▲ FILLING';
+    document.getElementById('fill-pct').textContent='+'+Math.round(target-level)+'%';
+    document.getElementById('fill-pct').style.color='#5ab8e0';
+  } else if(isDischarging){
+    badge.style.display='block';
+    badge.style.borderColor='#6a3a1a'; badge.style.background='rgba(30,15,5,0.92)';
+    badgeTxt.style.color='#aa6633';
+    badgeTxt.textContent='▼ DISCHARGING';
+    document.getElementById('fill-pct').textContent='-'+Math.round(level-target)+'%';
+    document.getElementById('fill-pct').style.color='#dd9955';
+  } else {
+    badge.style.display='none';
+  }
+
+  // Spawn
+  if(isFilling){
+    dropTimer += dt;
+    const rate = 0.09 - Math.min(0.06, (target-level)*0.001);
+    while(dropTimer >= rate){ spawnDrop(); dropTimer -= rate; }
+  } else {
+    dropTimer = 0;
+    // Kill all drops when not filling
+    dState.forEach(d=>d.active=false);
+    sState.forEach(s=>s.active=false);
+  }
+
+  // Simulate drops
+  let di = 0;
+  dState.forEach(d=>{
+    if(!d.active) return;
+    d.vy -= GRAVITY * dt;
+    d.y  += d.vy * dt;
+    d.age += dt;
+
+    // Hit surface?
+    if(d.y <= waterTop && d.vy < 0){
+      spawnSplash(d.x, waterTop, d.z);
+      d.active=false;
+      return;
+    }
+    if(d.y < tY-0.5 || d.age > 3){ d.active=false; return; }
+
+    // Write instance matrix
+    const speed = Math.abs(d.vy);
+    // elongate along Y when falling fast
+    const sy = Math.min(1.8, 1.0 + speed*0.12);
+    const sx = Math.max(0.55, 1.0 - speed*0.05);
+    _scale.set(d.r*sx, d.r*sy, d.r*sx);
+    _pos.set(d.x, d.y, d.z);
+    _mat4.compose(_pos, _quat, _scale);
+    dropMesh.setMatrixAt(di, _mat4);
+    di++;
+  });
+  dropMesh.count = di;
+  if(di>0) dropMesh.instanceMatrix.needsUpdate=true;
+
+  // Simulate splashes
+  let si=0;
+  sState.forEach(s=>{
+    if(!s.active) return;
+    s.age += dt;
+    if(s.age >= s.maxAge){ s.active=false; return; }
+
+    // Position y tracks water surface
+    s.y = tY + (level/100)*tH;
+
+    const t = s.age/s.maxAge;
+    // expand ring outward
+    const sc = 0.05 + t*0.45;
+    const op = (1-t*t) * 0.7;
+
+    _scale.set(sc,sc,sc);
+    _pos.set(s.x, s.y+0.02, s.z);
+    // Use flat quaternion so ring lies horizontal on the water surface
+    _mat4.compose(_pos, _splashQuat, _scale);
+    splashMesh.setMatrixAt(si, _mat4);
+
+    // Update per-instance color alpha (via opacity hack: set material opacity globally)
+    // We'll just animate the material opacity to the avg — good enough for uniform color
+    splashIMat.opacity = Math.max(splashIMat.opacity, op*0.6);
+    si++;
+  });
+  // Fade out material if no active splashes
+  if(si===0) splashIMat.opacity = Math.max(0, splashIMat.opacity-dt*3);
+  splashMesh.count = si;
+  if(si>0) splashMesh.instanceMatrix.needsUpdate=true;
+}
+
+// ═══════════════════════════════════════════════════════════
+// UPDATE WATER FILL
+// ═══════════════════════════════════════════════════════════
+function updateWater(){
+  const t = Math.max(0, Math.min(1, level/100));
+
+  // water mesh was created with height=1, so scale.y = actual world height
+  const wh = Math.max(0.01, tH * t);
+  water.scale.y = wh;
+  water.position.y = tY + wh/2;
+  surf.position.y  = tY + wh;
+
+  // Hide water completely when empty
+  water.visible = level > 0.5;
+  surf.visible  = level > 0.5;
+
+  // Gauge
+  const gh = Math.max(0.01, gLen * t);
+  gw.scale.y = gh;
+  gw.position.set(gX, gBot + gh/2, 0.5);
+  gw.visible = level > 0.5;
+
+  // Color shifts from dark to bright as it fills
+  waterMat.color.lerpColors(new THREE.Color(0x0c2e44), new THREE.Color(0x1d7aaa), t);
+  gwMat.color.lerpColors(new THREE.Color(0x0c3050), new THREE.Color(0x2090cc), t);
+
+  // Pump glow
+  pLight.intensity       = pumpOn ? 1.2 : 0;
+  pGlow.material.opacity = pumpOn ? 0.8 : 0;
+}
+
+// ═══════════════════════════════════════════════════════════
+// UI
+// ═══════════════════════════════════════════════════════════
+function updateUI(){
+  const lv = Math.round(level);
+  const fr = fillRate;
+  const frStr = (fr>=0?'+':'')+fr.toFixed(1)+'%/s';
+
+  // Clock
+  document.getElementById('sys-time').textContent=new Date().toLocaleTimeString();
+
+  // HUD
+  document.getElementById('hud-lvl').textContent  = lv+'%';
+  document.getElementById('hud-rate').textContent  = frStr;
+  document.getElementById('hud-pump').textContent  = pumpOn?'ON':'OFF';
+
+  const lvlEl=document.getElementById('hud-lvl');
+  lvlEl.className='hud-val'+(lv>=90?' danger':lv<=15?' warn':'');
+
+  // Panel gauge
+  document.getElementById('gauge-fill').style.height = lv+'%';
+  document.getElementById('p-level').textContent = lv;
+
+  // Panel telemetry
+  document.getElementById('p-rate').textContent  = frStr;
+  document.getElementById('p-target').textContent = Math.round(target)+'%';
+  document.getElementById('p-pump').textContent  = pumpOn?'RUNNING':'STOPPED';
+  document.getElementById('p-pump').className    = 'data-val '+(pumpOn?'green':'red');
+  document.getElementById('p-valve').textContent = pumpOn?'OPEN':'CLOSED';
+  document.getElementById('p-valve').className   = 'data-val '+(pumpOn?'green':'red');
+
+  // Status
+  const statEl=document.getElementById('p-status');
+  const sysDot=document.getElementById('sys-dot');
+  const sysTxt=document.getElementById('sys-txt');
+  const alert =document.getElementById('alert-strip');
+  const alarmEl=document.getElementById('p-alarms');
+
+  if(lv>=90){
+    statEl.textContent='FULL'; statEl.className='data-val red';
+    sysDot.className='pill-dot full'; sysTxt.textContent='ALARM';
+    alert.className='alert-strip show full';
+    document.getElementById('alert-icon').textContent='⚠ ALARM';
+    document.getElementById('alert-msg').textContent='TANK FULL — LEVEL AT OR ABOVE 90%';
+    alarmEl.textContent='TANK FULL'; alarmEl.className='data-val red';
+  } else if(lv<=15){
+    statEl.textContent='LOW'; statEl.className='data-val yellow';
+    sysDot.className='pill-dot low'; sysTxt.textContent='WARNING';
+    alert.className='alert-strip show low';
+    document.getElementById('alert-icon').textContent='⚠ WARNING';
+    document.getElementById('alert-msg').textContent='LOW WATER LEVEL — BELOW 15%';
+    alarmEl.textContent='LOW LEVEL'; alarmEl.className='data-val yellow';
+  } else {
+    statEl.textContent='NORMAL'; statEl.className='data-val green';
+    sysDot.className='pill-dot ok'; sysTxt.textContent='OPERATIONAL';
+    alert.className='alert-strip';
+    alarmEl.textContent='NONE'; alarmEl.className='data-val';
+  }
+
+  // ETA
+  if(fr>0.05){
+    const secs=((100-level)/fr);
+    document.getElementById('p-eta').textContent=secs<60?Math.round(secs)+'s':Math.round(secs/60)+'m';
+    document.getElementById('p-eta').className='data-val blue';
+  } else {
+    document.getElementById('p-eta').textContent='--';
+    document.getElementById('p-eta').className='data-val';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// CONTROLS
+// ═══════════════════════════════════════════════════════════
+
+function setSliderTarget(v){
+  target = v;
+  document.getElementById('p-target').textContent = Math.round(v)+'%';
+}
+
+function cancelAutoMode(){
+  autoMode = null;
+  document.getElementById('fill-btn').classList.remove('active-mode');
+  document.getElementById('disc-btn').classList.remove('active-mode');
+  document.getElementById('fill-btn').disabled = false;
+  document.getElementById('disc-btn').disabled = false;
+}
+
+// Buttons only send commands to Node-RED → Factory I/O
+// They do NOT touch level or target — Factory I/O owns those
+
+function triggerFill(){
+  if(autoMode==='fill'){
+    autoMode = null;
+    document.getElementById('fill-btn').classList.remove('active-mode');
+    document.getElementById('disc-btn').disabled = false;
+    return;
+  }
+  autoMode = 'fill';
+  document.getElementById('fill-btn').classList.add('active-mode');
+  document.getElementById('disc-btn').classList.remove('active-mode');
+  document.getElementById('disc-btn').disabled = true;
+}
+
+function triggerDischarge(){
+  if(autoMode==='discharge'){
+    autoMode = null;
+    document.getElementById('disc-btn').classList.remove('active-mode');
+    document.getElementById('fill-btn').disabled = false;
+    return;
+  }
+  autoMode = 'discharge';
+  document.getElementById('disc-btn').classList.add('active-mode');
+  document.getElementById('fill-btn').classList.remove('active-mode');
+  document.getElementById('fill-btn').disabled = true;
+}
+
+function onSlider(v){
+  cancelAutoMode();
+  setSliderTarget(parseFloat(v));
+}
+
+function onCamZoom(v){
+  camDist=parseFloat(v);
+  const pct=((camDist-5)/(22-5)*100).toFixed(0);
+  document.getElementById('cam-sl').style.setProperty('--v',pct+'%');
+  applyCamera();
+}
+
+function syncPumpUI(){
+  const btn=document.getElementById('pump-btn');
+  const sv =document.getElementById('pump-state-val');
+  btn.className='ind-btn '+(pumpOn?'on':'off');
+  btn.innerHTML=(pumpOn?'&#9632; PUMP ON':'&#9632; PUMP OFF');
+  sv.textContent=pumpOn?'RUNNING':'STOPPED';
+  sv.style.color=pumpOn?'#4aaa4a':'#cc4444';
+}
+
+function togglePump(){
+  pumpOn = !pumpOn;
+  syncPumpUI();
+}
+
+// ═══════════════════════════════════════════════════════════
+// STANDALONE SIMULATION ENGINE
+// No Factory I/O or Node-RED required — fully self-contained
+// ═══════════════════════════════════════════════════════════
+
+// Simulation rates (%/s)
+const FILL_RATE_SIM      =  8.0;  // how fast Fill auto-mode raises level
+const DISCHARGE_RATE_SIM = -6.0;  // how fast Discharge auto-mode lowers level
+
+let lastT = Date.now();
+let surfT = 0;
+
+function simulate(dt){
+  const prev = level;
+
+  if(autoMode === 'fill'){
+    // Pump must be on to fill
+    if(!pumpOn){ pumpOn = true; syncPumpUI(); }
+    target = Math.min(100, target + FILL_RATE_SIM * dt);
+    if(target >= 100){
+      target = 100;
+      cancelAutoMode();
+    }
+  } else if(autoMode === 'discharge'){
+    if(!pumpOn){ pumpOn = true; syncPumpUI(); }
+    target = Math.max(0, target + DISCHARGE_RATE_SIM * dt);
+    if(target <= 0){
+      target = 0;
+      cancelAutoMode();
+    }
+  }
+
+  // Smooth display level follows target
+  level += (target - level) * Math.min(dt * 3.0, 1.0);
+  fillRate = (level - prev) / dt;
+}
+
+function animate(){
+  requestAnimationFrame(animate);
+  const now = Date.now(), dt = Math.min((now - lastT) / 1000, 0.05); lastT = now;
+  surfT += dt;
+
+  simulate(dt);
+
+  // Surface ripple
+  surf.position.y = tY + (level / 100) * tH + Math.sin(surfT * 1.8) * 0.006;
+
+  updateDropSystem(dt);
+  updateWater();
+  updateUI();
+  renderer.render(scene, camera);
+}
+
+// ═══════════════════════════════════════════════════════════
+// OVERRIDE CONTROLS — operate on local state directly
+// ═══════════════════════════════════════════════════════════
+
+window.togglePump = function(){
+  pumpOn = !pumpOn;
+  if(!pumpOn){
+    // Pump OFF — halt any auto operation
+    cancelAutoMode();
+  }
+  syncPumpUI();
+};
+
+window.triggerFill = function(){
+  if(autoMode === 'fill'){
+    autoMode = null;
+    document.getElementById('fill-btn').classList.remove('active-mode');
+    document.getElementById('disc-btn').disabled = false;
+    return;
+  }
+  autoMode = 'fill';
+  pumpOn = true; syncPumpUI();
+  document.getElementById('fill-btn').classList.add('active-mode');
+  document.getElementById('disc-btn').classList.remove('active-mode');
+  document.getElementById('disc-btn').disabled = true;
+};
+
+window.triggerDischarge = function(){
+  if(autoMode === 'discharge'){
+    autoMode = null;
+    document.getElementById('disc-btn').classList.remove('active-mode');
+    document.getElementById('fill-btn').disabled = false;
+    return;
+  }
+  autoMode = 'discharge';
+  pumpOn = true; syncPumpUI();
+  document.getElementById('disc-btn').classList.add('active-mode');
+  document.getElementById('fill-btn').classList.remove('active-mode');
+  document.getElementById('fill-btn').disabled = true;
+};
+
+// ═══════════════════════════════════════════════════════════
+// RESIZE
+// ═══════════════════════════════════════════════════════════
+window.addEventListener('resize', ()=>{
+  W = wrap.clientWidth; H = wrap.clientHeight;
+  renderer.setSize(W, H);
+  camera.aspect = W / H;
+  camera.updateProjectionMatrix();
+});
+
+animate();
+</script>
+</body>
+</html>

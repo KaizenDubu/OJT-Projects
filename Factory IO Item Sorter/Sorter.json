@@ -1,0 +1,1069 @@
+[
+    {
+        "id": "63e9f20bf8fa4bf6",
+        "type": "tab",
+        "label": "P3_Sorter",
+        "disabled": true,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "35bd54e37f08047a",
+        "type": "ui-button",
+        "z": "63e9f20bf8fa4bf6",
+        "group": "be6e7a1962a53008",
+        "name": "Start",
+        "label": "Start",
+        "order": 0,
+        "width": 0,
+        "height": 0,
+        "emulateClick": true,
+        "tooltip": "",
+        "color": "",
+        "bgcolor": "",
+        "className": "",
+        "icon": "",
+        "iconPosition": "left",
+        "payload": "true",
+        "payloadType": "bool",
+        "topic": "Start",
+        "topicType": "str",
+        "buttonColor": "",
+        "textColor": "",
+        "iconColor": "",
+        "enableClick": true,
+        "enablePointerdown": false,
+        "pointerdownPayload": "",
+        "pointerdownPayloadType": "str",
+        "enablePointerup": false,
+        "pointerupPayload": "",
+        "pointerupPayloadType": "str",
+        "x": 510,
+        "y": 240,
+        "wires": [
+            [
+                "322601d8efdc1901"
+            ]
+        ]
+    },
+    {
+        "id": "ae04bf395313ac73",
+        "type": "ui-button",
+        "z": "63e9f20bf8fa4bf6",
+        "group": "be6e7a1962a53008",
+        "name": "Stop",
+        "label": "Stop",
+        "order": 0,
+        "width": 0,
+        "height": 0,
+        "emulateClick": false,
+        "tooltip": "",
+        "color": "",
+        "bgcolor": "",
+        "className": "",
+        "icon": "",
+        "iconPosition": "left",
+        "payload": "false",
+        "payloadType": "bool",
+        "topic": "Stop",
+        "topicType": "str",
+        "buttonColor": "",
+        "textColor": "",
+        "iconColor": "",
+        "enableClick": true,
+        "enablePointerdown": false,
+        "pointerdownPayload": "",
+        "pointerdownPayloadType": "str",
+        "enablePointerup": false,
+        "pointerupPayload": "",
+        "pointerupPayloadType": "str",
+        "x": 510,
+        "y": 300,
+        "wires": [
+            [
+                "322601d8efdc1901"
+            ]
+        ]
+    },
+    {
+        "id": "18ee542f912217d2",
+        "type": "ui-button",
+        "z": "63e9f20bf8fa4bf6",
+        "group": "be6e7a1962a53008",
+        "name": "Reset",
+        "label": "Reset",
+        "order": 0,
+        "width": 0,
+        "height": 0,
+        "emulateClick": false,
+        "tooltip": "",
+        "color": "",
+        "bgcolor": "",
+        "className": "",
+        "icon": "",
+        "iconPosition": "left",
+        "payload": "0",
+        "payloadType": "num",
+        "topic": "Reset",
+        "topicType": "str",
+        "buttonColor": "",
+        "textColor": "",
+        "iconColor": "",
+        "enableClick": true,
+        "enablePointerdown": false,
+        "pointerdownPayload": "",
+        "pointerdownPayloadType": "str",
+        "enablePointerup": false,
+        "pointerupPayload": "",
+        "pointerupPayloadType": "str",
+        "x": 510,
+        "y": 360,
+        "wires": [
+            [
+                "322601d8efdc1901",
+                "c44f1439f02d4b25"
+            ]
+        ]
+    },
+    {
+        "id": "322601d8efdc1901",
+        "type": "function",
+        "z": "63e9f20bf8fa4bf6",
+        "name": "The Master Controller",
+        "func": "    // 1. Initialize or retrieve the system state from memory\n    let isRunning = flow.get(\"isRunning\") || false;\n\n    // 2. Process incoming commands from Dashboard Buttons\n    if (msg.topic === \"Start\") {\n        isRunning = true;\n    } else if (msg.topic === \"Stop\") {\n        isRunning = false;\n    } else if (msg.topic === \"Reset\") {\n        isRunning = false;\n        // You can also add logic here to zero out a global counter\n    }\n\n    // 3. Save the updated state back to memory\n    flow.set(\"isRunning\", isRunning);\n\n    // 4. Return three separate messages for your three Modbus Write nodes\n    return [\n        { payload: isRunning },  // Output 1: Entry Conveyor (Coil 0)\n        { payload: isRunning },  // Output 2: Exit Conveyor (Coil 2)\n        { payload: !isRunning }  // Output 3: Stop Blade (Coil 1)\n    ];",
+        "outputs": 3,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 740,
+        "y": 300,
+        "wires": [
+            [
+                "a180d6c7429a8c22"
+            ],
+            [
+                "9b8aec80607c25e7",
+                "661b0a48eebc75be"
+            ],
+            [
+                "55f92ced5cdf74b6"
+            ]
+        ]
+    },
+    {
+        "id": "db5411b54af69d3a",
+        "type": "switch",
+        "z": "63e9f20bf8fa4bf6",
+        "name": "Decision",
+        "property": "payload",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "eq",
+                "v": "1",
+                "vt": "num"
+            },
+            {
+                "t": "eq",
+                "v": "4",
+                "vt": "num"
+            },
+            {
+                "t": "eq",
+                "v": "7",
+                "vt": "num"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 3,
+        "x": 480,
+        "y": 440,
+        "wires": [
+            [
+                "9b8aec80607c25e7",
+                "a4cc3783117e70d8",
+                "c9ec1bb43953ca5b"
+            ],
+            [
+                "9b8aec80607c25e7",
+                "d575e26662871f94",
+                "844b0f79f8e4b7cc",
+                "42d073a7349291b3"
+            ],
+            [
+                "9b8aec80607c25e7",
+                "325be635c5c6f71d",
+                "9793bb4ed0ff4906"
+            ]
+        ]
+    },
+    {
+        "id": "a180d6c7429a8c22",
+        "type": "modbus-write",
+        "z": "63e9f20bf8fa4bf6",
+        "name": "Entry Conveyor",
+        "showStatusActivities": false,
+        "showErrors": false,
+        "showWarnings": true,
+        "unitid": "",
+        "dataType": "Coil",
+        "adr": "0",
+        "quantity": "1",
+        "server": "4628b06563200c92",
+        "emptyMsgOnFail": false,
+        "keepMsgProperties": false,
+        "delayOnStart": false,
+        "startDelayTime": "",
+        "x": 1020,
+        "y": 240,
+        "wires": [
+            [],
+            []
+        ]
+    },
+    {
+        "id": "8b3856a6f6024bed",
+        "type": "modbus-write",
+        "z": "63e9f20bf8fa4bf6",
+        "name": "Stop Blade.",
+        "showStatusActivities": false,
+        "showErrors": false,
+        "showWarnings": true,
+        "unitid": "",
+        "dataType": "Coil",
+        "adr": "2",
+        "quantity": "1",
+        "server": "4628b06563200c92",
+        "emptyMsgOnFail": false,
+        "keepMsgProperties": false,
+        "delayOnStart": false,
+        "startDelayTime": "",
+        "x": 1170,
+        "y": 440,
+        "wires": [
+            [],
+            []
+        ]
+    },
+    {
+        "id": "55f92ced5cdf74b6",
+        "type": "modbus-write",
+        "z": "63e9f20bf8fa4bf6",
+        "name": "Exit Conveyor.",
+        "showStatusActivities": false,
+        "showErrors": false,
+        "showWarnings": true,
+        "unitid": "",
+        "dataType": "Coil",
+        "adr": "2",
+        "quantity": "1",
+        "server": "4628b06563200c92",
+        "emptyMsgOnFail": false,
+        "keepMsgProperties": false,
+        "delayOnStart": false,
+        "startDelayTime": "",
+        "x": 1020,
+        "y": 300,
+        "wires": [
+            [],
+            []
+        ]
+    },
+    {
+        "id": "226fb694860344cb",
+        "type": "modbus-read",
+        "z": "63e9f20bf8fa4bf6",
+        "name": "Eyes",
+        "topic": "",
+        "showStatusActivities": false,
+        "logIOActivities": false,
+        "showErrors": false,
+        "showWarnings": true,
+        "unitid": "",
+        "dataType": "InputRegister",
+        "adr": "0",
+        "quantity": "1",
+        "rate": "500",
+        "rateUnit": "ms",
+        "delayOnStart": false,
+        "enableDeformedMessages": false,
+        "startDelayTime": "",
+        "server": "4628b06563200c92",
+        "useIOFile": false,
+        "ioFile": "",
+        "useIOForPayload": false,
+        "emptyMsgOnFail": false,
+        "x": 190,
+        "y": 440,
+        "wires": [
+            [
+                "ba51234925b1442e"
+            ],
+            []
+        ]
+    },
+    {
+        "id": "30ec5451b5e7c9ff",
+        "type": "trigger",
+        "z": "63e9f20bf8fa4bf6",
+        "name": "",
+        "op1": "1",
+        "op2": "0",
+        "op1type": "num",
+        "op2type": "num",
+        "duration": "4.5",
+        "extend": false,
+        "overrideDelay": false,
+        "units": "s",
+        "reset": "",
+        "bytopic": "all",
+        "topic": "topic",
+        "outputs": 1,
+        "x": 890,
+        "y": 660,
+        "wires": [
+            [
+                "995e0caa38071ecf",
+                "5aaed98c31dca501"
+            ]
+        ]
+    },
+    {
+        "id": "1a3f0d59dba95b59",
+        "type": "trigger",
+        "z": "63e9f20bf8fa4bf6",
+        "name": "",
+        "op1": "1",
+        "op2": "0",
+        "op1type": "num",
+        "op2type": "num",
+        "duration": "3",
+        "extend": false,
+        "overrideDelay": false,
+        "units": "s",
+        "reset": "",
+        "bytopic": "all",
+        "topic": "topic",
+        "outputs": 1,
+        "x": 880,
+        "y": 760,
+        "wires": [
+            [
+                "b894e8ab8e66d74a",
+                "1c72f0439323d941"
+            ]
+        ]
+    },
+    {
+        "id": "83e6328dd9b03668",
+        "type": "trigger",
+        "z": "63e9f20bf8fa4bf6",
+        "name": "",
+        "op1": "1",
+        "op2": "0",
+        "op1type": "num",
+        "op2type": "num",
+        "duration": "3",
+        "extend": false,
+        "overrideDelay": false,
+        "units": "s",
+        "reset": "",
+        "bytopic": "all",
+        "topic": "topic",
+        "outputs": 1,
+        "x": 880,
+        "y": 560,
+        "wires": [
+            [
+                "a68ceb2fc97e58b5",
+                "edc549459c955f4f"
+            ]
+        ]
+    },
+    {
+        "id": "a68ceb2fc97e58b5",
+        "type": "modbus-write",
+        "z": "63e9f20bf8fa4bf6",
+        "name": "Blue Boxes",
+        "showStatusActivities": false,
+        "showErrors": false,
+        "showWarnings": true,
+        "unitid": "",
+        "dataType": "Coil",
+        "adr": "3",
+        "quantity": "1",
+        "server": "4628b06563200c92",
+        "emptyMsgOnFail": false,
+        "keepMsgProperties": false,
+        "delayOnStart": false,
+        "startDelayTime": "",
+        "x": 1130,
+        "y": 540,
+        "wires": [
+            [],
+            []
+        ]
+    },
+    {
+        "id": "995e0caa38071ecf",
+        "type": "modbus-write",
+        "z": "63e9f20bf8fa4bf6",
+        "name": "Green Box",
+        "showStatusActivities": false,
+        "showErrors": false,
+        "showWarnings": true,
+        "unitid": "",
+        "dataType": "Coil",
+        "adr": "5",
+        "quantity": "1",
+        "server": "4628b06563200c92",
+        "emptyMsgOnFail": false,
+        "keepMsgProperties": false,
+        "delayOnStart": false,
+        "startDelayTime": "",
+        "x": 1130,
+        "y": 640,
+        "wires": [
+            [],
+            []
+        ]
+    },
+    {
+        "id": "1c72f0439323d941",
+        "type": "modbus-write",
+        "z": "63e9f20bf8fa4bf6",
+        "name": "Gray Box",
+        "showStatusActivities": false,
+        "showErrors": false,
+        "showWarnings": true,
+        "unitid": "",
+        "dataType": "Coil",
+        "adr": "8",
+        "quantity": "1",
+        "server": "4628b06563200c92",
+        "emptyMsgOnFail": false,
+        "keepMsgProperties": false,
+        "delayOnStart": false,
+        "startDelayTime": "",
+        "x": 1120,
+        "y": 780,
+        "wires": [
+            [],
+            []
+        ]
+    },
+    {
+        "id": "edc549459c955f4f",
+        "type": "modbus-write",
+        "z": "63e9f20bf8fa4bf6",
+        "name": "Blue Boxes",
+        "showStatusActivities": false,
+        "showErrors": false,
+        "showWarnings": true,
+        "unitid": "",
+        "dataType": "Coil",
+        "adr": "4",
+        "quantity": "1",
+        "server": "4628b06563200c92",
+        "emptyMsgOnFail": false,
+        "keepMsgProperties": false,
+        "delayOnStart": false,
+        "startDelayTime": "",
+        "x": 1130,
+        "y": 580,
+        "wires": [
+            [],
+            []
+        ]
+    },
+    {
+        "id": "5aaed98c31dca501",
+        "type": "modbus-write",
+        "z": "63e9f20bf8fa4bf6",
+        "name": "Green Box",
+        "showStatusActivities": false,
+        "showErrors": false,
+        "showWarnings": true,
+        "unitid": "",
+        "dataType": "Coil",
+        "adr": "6",
+        "quantity": "1",
+        "server": "4628b06563200c92",
+        "emptyMsgOnFail": false,
+        "keepMsgProperties": false,
+        "delayOnStart": false,
+        "startDelayTime": "",
+        "x": 1130,
+        "y": 680,
+        "wires": [
+            [],
+            []
+        ]
+    },
+    {
+        "id": "b894e8ab8e66d74a",
+        "type": "modbus-write",
+        "z": "63e9f20bf8fa4bf6",
+        "name": "Gray Box",
+        "showStatusActivities": false,
+        "showErrors": false,
+        "showWarnings": true,
+        "unitid": "",
+        "dataType": "Coil",
+        "adr": "7",
+        "quantity": "1",
+        "server": "4628b06563200c92",
+        "emptyMsgOnFail": false,
+        "keepMsgProperties": false,
+        "delayOnStart": false,
+        "startDelayTime": "",
+        "x": 1120,
+        "y": 740,
+        "wires": [
+            [],
+            []
+        ]
+    },
+    {
+        "id": "9b8aec80607c25e7",
+        "type": "trigger",
+        "z": "63e9f20bf8fa4bf6",
+        "name": "",
+        "op1": "0",
+        "op2": "9",
+        "op1type": "num",
+        "op2type": "num",
+        "duration": "1",
+        "extend": false,
+        "overrideDelay": false,
+        "units": "s",
+        "reset": "",
+        "bytopic": "all",
+        "topic": "topic",
+        "outputs": 1,
+        "x": 980,
+        "y": 440,
+        "wires": [
+            [
+                "8b3856a6f6024bed"
+            ]
+        ]
+    },
+    {
+        "id": "a4cc3783117e70d8",
+        "type": "delay",
+        "z": "63e9f20bf8fa4bf6",
+        "name": "",
+        "pauseType": "delay",
+        "timeout": "1",
+        "timeoutUnits": "seconds",
+        "rate": "1",
+        "nbRateUnits": "1",
+        "rateUnits": "second",
+        "randomFirst": "1",
+        "randomLast": "5",
+        "randomUnits": "seconds",
+        "drop": false,
+        "allowrate": false,
+        "outputs": 1,
+        "x": 680,
+        "y": 600,
+        "wires": [
+            [
+                "83e6328dd9b03668"
+            ]
+        ]
+    },
+    {
+        "id": "325be635c5c6f71d",
+        "type": "delay",
+        "z": "63e9f20bf8fa4bf6",
+        "name": "",
+        "pauseType": "delay",
+        "timeout": "6",
+        "timeoutUnits": "seconds",
+        "rate": "1",
+        "nbRateUnits": "1",
+        "rateUnits": "second",
+        "randomFirst": "1",
+        "randomLast": "5",
+        "randomUnits": "seconds",
+        "drop": false,
+        "allowrate": false,
+        "outputs": 1,
+        "x": 680,
+        "y": 720,
+        "wires": [
+            [
+                "1a3f0d59dba95b59"
+            ]
+        ]
+    },
+    {
+        "id": "d575e26662871f94",
+        "type": "delay",
+        "z": "63e9f20bf8fa4bf6",
+        "name": "",
+        "pauseType": "delay",
+        "timeout": "3",
+        "timeoutUnits": "seconds",
+        "rate": "1",
+        "nbRateUnits": "1",
+        "rateUnits": "second",
+        "randomFirst": "1",
+        "randomLast": "5",
+        "randomUnits": "seconds",
+        "drop": false,
+        "allowrate": false,
+        "outputs": 1,
+        "x": 680,
+        "y": 660,
+        "wires": [
+            [
+                "30ec5451b5e7c9ff"
+            ]
+        ]
+    },
+    {
+        "id": "4cf19dae118dbfe5",
+        "type": "ui-gauge",
+        "z": "63e9f20bf8fa4bf6",
+        "name": "Green",
+        "group": "be6e7a1962a53008",
+        "order": 0,
+        "value": "payload",
+        "valueType": "msg",
+        "width": 3,
+        "height": 3,
+        "gtype": "gauge-half",
+        "gstyle": "needle",
+        "title": "Box",
+        "alwaysShowTitle": false,
+        "floatingTitlePosition": "top-left",
+        "units": "Box",
+        "icon": "",
+        "prefix": "",
+        "suffix": "",
+        "segments": [
+            {
+                "from": "0",
+                "color": "#5cd65c",
+                "text": "",
+                "textType": "value"
+            }
+        ],
+        "min": 0,
+        "max": "50",
+        "sizeThickness": 16,
+        "sizeGap": 4,
+        "sizeKeyThickness": 8,
+        "styleRounded": true,
+        "styleGlow": false,
+        "className": "",
+        "x": 910,
+        "y": 900,
+        "wires": [
+            [
+                "8da475bc29bb14c1"
+            ]
+        ]
+    },
+    {
+        "id": "a71c7e5aab9eae01",
+        "type": "ui-gauge",
+        "z": "63e9f20bf8fa4bf6",
+        "name": "Metal",
+        "group": "be6e7a1962a53008",
+        "order": 0,
+        "value": "payload",
+        "valueType": "msg",
+        "width": 3,
+        "height": 3,
+        "gtype": "gauge-half",
+        "gstyle": "needle",
+        "title": "Metal",
+        "alwaysShowTitle": false,
+        "floatingTitlePosition": "top-left",
+        "units": "Box",
+        "icon": "",
+        "prefix": "",
+        "suffix": "",
+        "segments": [
+            {
+                "from": "0",
+                "color": "#bbc3bb",
+                "text": "",
+                "textType": "value"
+            }
+        ],
+        "min": 0,
+        "max": "50",
+        "sizeThickness": 16,
+        "sizeGap": 4,
+        "sizeKeyThickness": 8,
+        "styleRounded": true,
+        "styleGlow": false,
+        "className": "",
+        "x": 910,
+        "y": 940,
+        "wires": [
+            [
+                "8da475bc29bb14c1"
+            ]
+        ]
+    },
+    {
+        "id": "1244532ec060e417",
+        "type": "ui-gauge",
+        "z": "63e9f20bf8fa4bf6",
+        "name": "Blue",
+        "group": "be6e7a1962a53008",
+        "order": 0,
+        "value": "payload",
+        "valueType": "msg",
+        "width": 3,
+        "height": 3,
+        "gtype": "gauge-half",
+        "gstyle": "needle",
+        "title": "Blue",
+        "alwaysShowTitle": false,
+        "floatingTitlePosition": "top-left",
+        "units": "Box",
+        "icon": "",
+        "prefix": "",
+        "suffix": "",
+        "segments": [
+            {
+                "from": "0",
+                "color": "#2d49b9",
+                "text": "",
+                "textType": "value"
+            }
+        ],
+        "min": 0,
+        "max": "50",
+        "sizeThickness": 16,
+        "sizeGap": 4,
+        "sizeKeyThickness": 8,
+        "styleRounded": true,
+        "styleGlow": false,
+        "className": "",
+        "x": 910,
+        "y": 860,
+        "wires": [
+            [
+                "8da475bc29bb14c1"
+            ]
+        ]
+    },
+    {
+        "id": "c9ec1bb43953ca5b",
+        "type": "function",
+        "z": "63e9f20bf8fa4bf6",
+        "name": "function 2",
+        "func": "// Get the current blue count, or start at 0 if it doesn't exist\nlet count = flow.get('blueCount') || 0;\ncount++; // Add 1\nflow.set('blueCount', count); // Save the new count\n\n// Send the new count to the Gauge\nmsg.payload = count;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 660,
+        "y": 840,
+        "wires": [
+            [
+                "1244532ec060e417"
+            ]
+        ]
+    },
+    {
+        "id": "844b0f79f8e4b7cc",
+        "type": "function",
+        "z": "63e9f20bf8fa4bf6",
+        "name": "function 3",
+        "func": "let count = flow.get('greenCount') || 0;\ncount++;\nflow.set('greenCount', count);\n\nmsg.payload = count;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 660,
+        "y": 880,
+        "wires": [
+            [
+                "4cf19dae118dbfe5"
+            ]
+        ]
+    },
+    {
+        "id": "9793bb4ed0ff4906",
+        "type": "function",
+        "z": "63e9f20bf8fa4bf6",
+        "name": "function 4",
+        "func": "let count = flow.get('metalCount') || 0;\ncount++;\nflow.set('metalCount', count);\n\nmsg.payload = count;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 660,
+        "y": 920,
+        "wires": [
+            [
+                "a71c7e5aab9eae01"
+            ]
+        ]
+    },
+    {
+        "id": "ba51234925b1442e",
+        "type": "rbe",
+        "z": "63e9f20bf8fa4bf6",
+        "name": "",
+        "func": "rbe",
+        "gap": "",
+        "start": "",
+        "inout": "out",
+        "septopics": true,
+        "property": "payload",
+        "topi": "topic",
+        "x": 330,
+        "y": 440,
+        "wires": [
+            [
+                "db5411b54af69d3a"
+            ]
+        ]
+    },
+    {
+        "id": "c44f1439f02d4b25",
+        "type": "function",
+        "z": "63e9f20bf8fa4bf6",
+        "name": "function 5",
+        "func": "// Reset all flow variables to 0\nflow.set('blueCount', 0);\nflow.set('greenCount', 0);\nflow.set('metalCount', 0);\n\n// Send a 0 payload to all connected Gauges\nmsg.payload = 0;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 660,
+        "y": 960,
+        "wires": [
+            [
+                "1244532ec060e417",
+                "4cf19dae118dbfe5",
+                "a71c7e5aab9eae01"
+            ]
+        ]
+    },
+    {
+        "id": "661b0a48eebc75be",
+        "type": "function",
+        "z": "63e9f20bf8fa4bf6",
+        "name": "function 6",
+        "func": "var color = msg.payload.color || msg.topic || \"gray\";\nmsg.payload = JSON.stringify({ spawnBox: color, detectedColor: color, sensorActive: true });\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1460,
+        "y": 400,
+        "wires": [
+            [
+                "45f59e39696814e3"
+            ]
+        ]
+    },
+    {
+        "id": "42d073a7349291b3",
+        "type": "function",
+        "z": "63e9f20bf8fa4bf6",
+        "name": "function 7",
+        "func": "// WS Function B\nmsg.payload = JSON.stringify({\n    gateBlue: msg.topic === \"blue\",\n    gateGreen: msg.topic === \"green\",\n    gateGray: msg.topic === \"gray\" || msg.topic === \"metal\",\n    sensorActive: false\n});\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1460,
+        "y": 520,
+        "wires": [
+            [
+                "45f59e39696814e3"
+            ]
+        ]
+    },
+    {
+        "id": "8da475bc29bb14c1",
+        "type": "function",
+        "z": "63e9f20bf8fa4bf6",
+        "name": "function 8",
+        "func": "msg.payload = JSON.stringify({\n    entryRunning: msg.payload.entry || false,\n    exitRunning: msg.payload.exit || false,\n});\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1460,
+        "y": 860,
+        "wires": [
+            [
+                "45f59e39696814e3"
+            ]
+        ]
+    },
+    {
+        "id": "45f59e39696814e3",
+        "type": "websocket out",
+        "z": "63e9f20bf8fa4bf6",
+        "name": "",
+        "server": "8146d410e9f245df",
+        "client": "",
+        "x": 1700,
+        "y": 620,
+        "wires": []
+    },
+    {
+        "id": "be6e7a1962a53008",
+        "type": "ui-group",
+        "name": "Group Name",
+        "page": "5105ac8155d699fc",
+        "width": 6,
+        "height": 1,
+        "order": -1,
+        "showTitle": true,
+        "className": "",
+        "visible": "true",
+        "disabled": "false",
+        "groupType": "default"
+    },
+    {
+        "id": "4628b06563200c92",
+        "type": "modbus-client",
+        "name": "switch",
+        "clienttype": "tcp",
+        "bufferCommands": true,
+        "stateLogEnabled": false,
+        "queueLogEnabled": false,
+        "failureLogEnabled": true,
+        "tcpHost": "10.40.71.29",
+        "tcpPort": 502,
+        "tcpType": "DEFAULT",
+        "serialPort": "/dev/ttyUSB",
+        "serialType": "RTU-BUFFERD",
+        "serialBaudrate": 9600,
+        "serialDatabits": 8,
+        "serialStopbits": 1,
+        "serialParity": "none",
+        "serialConnectionDelay": 100,
+        "serialAsciiResponseStartDelimiter": "0x3A",
+        "unit_id": 1,
+        "commandDelay": 1,
+        "clientTimeout": 1000,
+        "reconnectOnTimeout": true,
+        "reconnectTimeout": 2000,
+        "parallelUnitIdsAllowed": true,
+        "showErrors": false,
+        "showWarnings": true,
+        "showLogs": true
+    },
+    {
+        "id": "8146d410e9f245df",
+        "type": "websocket-listener",
+        "path": "/ws/factory",
+        "wholemsg": "false"
+    },
+    {
+        "id": "5105ac8155d699fc",
+        "type": "ui-page",
+        "name": "P3_Sorter",
+        "ui": "61268939b3763590",
+        "path": "/page2",
+        "icon": "home",
+        "layout": "grid",
+        "theme": "3f9b6b7b9b339432",
+        "breakpoints": [
+            {
+                "name": "Default",
+                "px": "0",
+                "cols": "3"
+            },
+            {
+                "name": "Tablet",
+                "px": "576",
+                "cols": "6"
+            },
+            {
+                "name": "Small Desktop",
+                "px": "768",
+                "cols": "9"
+            },
+            {
+                "name": "Desktop",
+                "px": "1024",
+                "cols": "12"
+            }
+        ],
+        "order": -1,
+        "className": "",
+        "visible": "true",
+        "disabled": "false"
+    },
+    {
+        "id": "61268939b3763590",
+        "type": "ui-base",
+        "name": "My Dashboard",
+        "path": "/dashboard",
+        "appIcon": "",
+        "includeClientData": true,
+        "acceptsClientConfig": [
+            "ui-notification",
+            "ui-control"
+        ],
+        "showPathInSidebar": false,
+        "headerContent": "page",
+        "navigationStyle": "default",
+        "titleBarStyle": "default",
+        "showReconnectNotification": true,
+        "notificationDisplayTime": 1,
+        "showDisconnectNotification": true,
+        "allowInstall": false
+    },
+    {
+        "id": "3f9b6b7b9b339432",
+        "type": "ui-theme",
+        "name": "Default Theme",
+        "colors": {
+            "surface": "#ffffff",
+            "primary": "#0094CE",
+            "bgPage": "#eeeeee",
+            "groupBg": "#ffffff",
+            "groupOutline": "#cccccc"
+        },
+        "sizes": {
+            "density": "default",
+            "pagePadding": "12px",
+            "groupGap": "12px",
+            "groupBorderRadius": "4px",
+            "widgetGap": "12px"
+        }
+    },
+    {
+        "id": "7414bb8b37acdc29",
+        "type": "global-config",
+        "env": [],
+        "modules": {
+            "@flowfuse/node-red-dashboard": "1.30.2",
+            "node-red-contrib-modbus": "5.45.2"
+        }
+    }
+]
